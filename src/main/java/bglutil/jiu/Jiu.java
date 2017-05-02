@@ -283,20 +283,28 @@ public class Jiu {
 	
 	/**
 	 * Create a new infrastructure for demo purpose.
-	 * 1. One Compartment - bgltest by default.
-	 * 2. //TODO One VCN - bgltest by default.
+	 * 1. Compartment read from configuration file.
+	 * 2. One VCN.
+	 * 3. One IGW.
+	 * 4. One Public Route Table.
+	 * 5. 
 	 * @param profile
 	 * @throws Exception
 	 */
 	public void createDemoInfra(String namePrefix, String profile) throws Exception{
 		h.help(namePrefix, "<resource-name-prefix> <profile-name>");
-		String prefix = namePrefix==null?namePrefix:"bgltest";
+		String prefix = namePrefix!=null?namePrefix:"bgltest";
 		sk.printTitle(0, "Create Infrastructure - "+prefix);
 		Identity id = Client.getIamClient(profile);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
 		UtilIam ui = new UtilIam();
-		sk.printTitle(1, "Create Compartment "+prefix);
-		String compartmentId = ui.createCompartment(id, prefix, "Test environment for todd.bao@.").getCompartmentId();
-		sk.printResult(1, true, "Compartment "+prefix+", "+compartmentId+" created.");
+		UtilNetwork un = new UtilNetwork();
+		String compartmentId = Config.getConfigFileReader(profile).get("compartment");
+		Vcn vcn = un.createVcn(vn, compartmentId, prefix+"vcn", "10.7.0.0/16", "Jiu - "+prefix+"vcn");
+		InternetGateway igw = un.createIgw(vn, compartmentId, vcn.getId(), prefix+"igw");
+		RouteRule rr = RouteRule.builder().cidrBlock("0.0.0.0/0").networkEntityId(igw.getId()).build();
+		List<RouteRule> rrs = new ArrayList<RouteRule>(); rrs.add(rr);
+		un.createRouteTable(vn, compartmentId, vcn.getId(), prefix+"rt-public", rrs);
 	}
 	
 	/**

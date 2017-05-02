@@ -1,6 +1,7 @@
 package bglutil.jiu;
 
 import java.io.IOException;
+import java.util.List;
 
 import com.oracle.bmc.identity.Identity;
 import com.oracle.bmc.identity.model.Compartment;
@@ -10,6 +11,7 @@ import com.oracle.bmc.identity.requests.CreateCompartmentRequest;
 import com.oracle.bmc.identity.requests.GetCompartmentRequest;
 import com.oracle.bmc.identity.requests.GetUserRequest;
 import com.oracle.bmc.identity.requests.ListApiKeysRequest;
+import com.oracle.bmc.identity.requests.ListCompartmentsRequest;
 import com.oracle.bmc.identity.requests.ListUsersRequest;
 import com.oracle.bmc.identity.responses.CreateCompartmentResponse;
 import com.oracle.bmc.identity.responses.GetCompartmentResponse;
@@ -65,6 +67,24 @@ public class UtilIam extends UtilMain{
 			return null;
 		}
 		return gcr.getCompartment().getName();
+	}
+	
+	/**
+	 * Convert IAM compartment name to OCID.
+	 * @param id
+	 * @param name
+	 * @param tenancyId
+	 * @return
+	 */
+	public String getCompartmentOcidByName(Identity id, String name, String tenancyId){
+		List<Compartment> compartments = id.listCompartments(ListCompartmentsRequest.builder().compartmentId(tenancyId).build()).getItems();
+		String ocid = null;
+		for(Compartment c:compartments){
+			if(c.getName().equals(name)){
+				ocid = c.getId();
+			}
+		}
+		return ocid;
 	}
 	
 	// CREATOR //

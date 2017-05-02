@@ -3,28 +3,42 @@ package bglutil.jiu;
 import java.util.List;
 
 import com.oracle.bmc.core.VirtualNetwork;
+import com.oracle.bmc.core.model.CreateInternetGatewayDetails;
+import com.oracle.bmc.core.model.CreateRouteTableDetails;
 import com.oracle.bmc.core.model.CreateSubnetDetails;
 import com.oracle.bmc.core.model.CreateVcnDetails;
+import com.oracle.bmc.core.model.DhcpOptions;
 import com.oracle.bmc.core.model.EgressSecurityRule;
 import com.oracle.bmc.core.model.IngressSecurityRule;
+import com.oracle.bmc.core.model.InternetGateway;
 import com.oracle.bmc.core.model.PortRange;
+import com.oracle.bmc.core.model.RouteRule;
+import com.oracle.bmc.core.model.RouteTable;
 import com.oracle.bmc.core.model.SecurityList;
 import com.oracle.bmc.core.model.Subnet;
 import com.oracle.bmc.core.model.TcpOptions;
 import com.oracle.bmc.core.model.UdpOptions;
 import com.oracle.bmc.core.model.UpdateSecurityListDetails;
 import com.oracle.bmc.core.model.Vcn;
+import com.oracle.bmc.core.requests.CreateInternetGatewayRequest;
+import com.oracle.bmc.core.requests.CreateRouteTableRequest;
 import com.oracle.bmc.core.requests.CreateSubnetRequest;
 import com.oracle.bmc.core.requests.CreateVcnRequest;
+import com.oracle.bmc.core.requests.DeleteRouteTableRequest;
 import com.oracle.bmc.core.requests.DeleteSecurityListRequest;
 import com.oracle.bmc.core.requests.DeleteVcnRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
+import com.oracle.bmc.core.requests.ListRouteTablesRequest;
 import com.oracle.bmc.core.requests.ListSecurityListsRequest;
 import com.oracle.bmc.core.requests.ListSubnetsRequest;
 import com.oracle.bmc.core.requests.ListVcnsRequest;
 import com.oracle.bmc.core.requests.UpdateSecurityListRequest;
+import com.oracle.bmc.core.responses.CreateInternetGatewayResponse;
+import com.oracle.bmc.core.responses.CreateRouteTableResponse;
 import com.oracle.bmc.core.responses.CreateSubnetResponse;
 import com.oracle.bmc.core.responses.CreateVcnResponse;
+import com.oracle.bmc.core.responses.GetInternetGatewayResponse;
+import com.oracle.bmc.core.responses.GetRouteTableResponse;
 import com.oracle.bmc.core.responses.GetVcnResponse;
 import com.oracle.bmc.core.responses.ListSubnetsResponse;
 import com.oracle.bmc.core.responses.ListVcnsResponse;
@@ -189,8 +203,8 @@ public class UtilNetwork extends UtilMain {
 			String port = r.getTcpOptions().getDestinationPortRange().getMin()+"~"+r.getTcpOptions().getDestinationPortRange().getMax();
 			if(source.equals("0.0.0.0/0") && port.equals(tcpPort+"~"+tcpPort)){
 				ir.remove(r);
+				break;
 			}
-			break;
 		}
 		UpdateSecurityListDetails usld = UpdateSecurityListDetails.builder().ingressSecurityRules(ir).build();
 		vn.updateSecurityList(UpdateSecurityListRequest.builder().securityListId(secListId).updateSecurityListDetails(usld).build());
@@ -267,8 +281,73 @@ public class UtilNetwork extends UtilMain {
 		return res.getSubnet();
 	}
 
+	/**
+	 * Create a new IGW.
+	 * @param vn
+	 * @param compartmentId
+	 * @param vcnId
+	 * @param name
+	 * @return
+	 * @throws Exception
+	 */
+	public InternetGateway createIgw(VirtualNetwork vn, String compartmentId, String vcnId, String name) throws Exception{
+		CreateInternetGatewayResponse cigr = vn.createInternetGateway(CreateInternetGatewayRequest.builder()
+				.createInternetGatewayDetails(CreateInternetGatewayDetails.builder()
+							.compartmentId(compartmentId).isEnabled(true).vcnId(vcnId).displayName(name).build()
+						)
+				.build());
+		String igwId = cigr.getInternetGateway().getId();
+		GetInternetGatewayResponse res = h.waitForIgwStatus(vn, igwId, InternetGateway.LifecycleState.Available, "Creating IGW "+name, false);
+		return res.getInternetGateway();
+	}
+	
+	/**
+	 * Create a new Route Table.
+	 * @param vn
+	 * @param compartmentId
+	 * @param vcnId
+	 * @param name
+	 * @param rrs
+	 * @return
+	 * @throws Exception
+	 */
+	public RouteTable createRouteTable(VirtualNetwork vn, String compartmentId, String vcnId, String name, List<RouteRule> routeRules) throws Exception{
+		
+		CreateRouteTableResponse crtr = vn.createRouteTable(CreateRouteTableRequest.builder().createRouteTableDetails(
+				CreateRouteTableDetails.builder().compartmentId(compartmentId).displayName(name).vcnId(vcnId)
+				.routeRules(routeRules)
+				.build()		
+				).build()); 
+		String rtId = crtr.getRouteTable().getId();
+		GetRouteTableResponse res = h.waitForRouteTableStatus(vn, rtId, RouteTable.LifecycleState.Available, "Creating Route Table "+name, false);
+		return res.getRouteTable();
+	}
+	
+	public DhcpOptions createDhcpOptions(VirtualNetwork vn, String compartmentId, String vcnId, String name) throws Exception{
+		
+	}
+	
 	// TERMINATOR //
-
+	/**
+	 * Delete all route tables with matching display name prefix.
+	 * @param vn
+	 * @param compartmentId
+	 * @param vcnId
+	 * @param namePrefix
+	 * @throws Exception
+	 */
+	public void deleteRouteTableByNamePrefix(VirtualNetwork vn, String compartmentId, String vcnId, String namePrefix) throws Exception{
+		List<RouteTable> rts = vn
+				.listRouteTables(ListRouteTablesRequest.builder().compartmentId(compartmentId).vcnId(vcnId).build())
+				.getItems();
+		for(RouteTable rt:rts){
+			if(rt.getDisplayName().startsWith(namePrefix)){
+				vn.deleteRouteTable(DeleteRouteTableRequest.builder().rtId(rt.getId()).build());
+				h.waitForRouteTableStatus(vn, rt.getId(), RouteTable.LifecycleState.Terminated, "Deleting Route Table "+rt.getDisplayName(), true);
+			}
+		}
+	}
+	
 	/**
 	 * Delete all SecList with matching display name prefix.
 	 * 
@@ -290,7 +369,6 @@ public class UtilNetwork extends UtilMain {
 						"Deleting SEC LIST " + sl.getDisplayName(), true);
 			}
 		}
-
 	}
 
 	/**
@@ -305,6 +383,22 @@ public class UtilNetwork extends UtilMain {
 		ListVcnsResponse res = vn.listVcns(ListVcnsRequest.builder().compartmentId(compartmentId).build());
 		for (Vcn v : res.getItems()) {
 			if (v.getDisplayName().startsWith(vcnNamePrefix)) {
+				// Check defaults.
+				String defaultRouteTableId = v.getDefaultRouteTableId();
+				String defaultDhcpId = v.getDefaultDhcpOptionsId();
+				String defaultSecList = v.getDefaultSecurityListId();
+				// Remove route tables.
+				List<RouteTable> rts = vn
+						.listRouteTables(ListRouteTablesRequest.builder().compartmentId(compartmentId).vcnId(v.getId()).build())
+						.getItems();
+				for(RouteTable rt:rts){
+					if(rt.getId().equals(defaultRouteTableId)){
+						continue;
+					}
+					vn.deleteRouteTable(DeleteRouteTableRequest.builder().rtId(rt.getId()).build());
+					h.waitForRouteTableStatus(vn, rt.getId(), RouteTable.LifecycleState.Terminated, "Deleting route table "+rt.getDisplayName(), true);
+				}
+				// Remove VCN.
 				vn.deleteVcn(DeleteVcnRequest.builder().vcnId(v.getId()).build());
 				h.waitForVcnStatus(vn, v.getId(), Vcn.LifecycleState.Terminated, "Deleting VCN " + v.getDisplayName(),
 						true);

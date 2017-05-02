@@ -5,10 +5,19 @@ import java.lang.reflect.Modifier;
 
 import com.oracle.bmc.core.VirtualNetwork;
 import com.oracle.bmc.core.VirtualNetworkWaiters;
+import com.oracle.bmc.core.model.DhcpOptions;
+import com.oracle.bmc.core.model.InternetGateway;
+import com.oracle.bmc.core.model.RouteTable;
 import com.oracle.bmc.core.model.SecurityList;
 import com.oracle.bmc.core.model.Vcn;
+import com.oracle.bmc.core.requests.GetDhcpOptionsRequest;
+import com.oracle.bmc.core.requests.GetInternetGatewayRequest;
+import com.oracle.bmc.core.requests.GetRouteTableRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
 import com.oracle.bmc.core.requests.GetVcnRequest;
+import com.oracle.bmc.core.responses.GetDhcpOptionsResponse;
+import com.oracle.bmc.core.responses.GetInternetGatewayResponse;
+import com.oracle.bmc.core.responses.GetRouteTableResponse;
 import com.oracle.bmc.core.responses.GetSecurityListResponse;
 import com.oracle.bmc.core.responses.GetVcnResponse;
 import com.oracle.bmc.identity.Identity;
@@ -109,6 +118,34 @@ public class Helper {
 	}
 	
 	/* waitForXxxStatus */
+	
+	public GetDhcpOptionsResponse waitForDhcpOptionsStatus(VirtualNetwork vn, String dhcpId, DhcpOptions.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
+		char mark = tearDown?this.removing:this.building;
+		VirtualNetworkWaiters slw = vn.getWaiters();
+		this.processingV2(waitMessage+" ... ");
+		GetDhcpOptionsResponse res = slw.forDhcpOptions(GetDhcpOptionsRequest.builder().dhcpId(dhcpId).build(), state).execute();
+		this.done(mark);
+		return res;
+	}
+	
+	public GetRouteTableResponse waitForRouteTableStatus(VirtualNetwork vn, String rtId, RouteTable.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
+		char mark = tearDown?this.removing:this.building;
+		VirtualNetworkWaiters slw = vn.getWaiters();
+		this.processingV2(waitMessage+" ... ");
+		GetRouteTableResponse res = slw.forRouteTable(GetRouteTableRequest.builder().rtId(rtId).build(), state).execute();
+		this.done(mark);
+		return res;
+	}
+	
+	public GetInternetGatewayResponse waitForIgwStatus(VirtualNetwork vn, String igwId, InternetGateway.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
+		char mark = tearDown?this.removing:this.building;
+		VirtualNetworkWaiters slw = vn.getWaiters();
+		this.processingV2(waitMessage+" ... ");
+		GetInternetGatewayResponse res = slw.forInternetGateway(GetInternetGatewayRequest.builder().igId(igwId).build(), state).execute();
+		this.done(mark);
+		return res;
+	}
+	
 	public GetSecurityListResponse waitForSecurityListStatus(VirtualNetwork vn, String secListId, SecurityList.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
 		char mark = tearDown?this.removing:this.building;
 		VirtualNetworkWaiters slw = vn.getWaiters();
@@ -173,7 +210,7 @@ public class Helper {
 					break;
 				}
 				try {
-					Thread.sleep(200);
+					Thread.sleep(50);
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
