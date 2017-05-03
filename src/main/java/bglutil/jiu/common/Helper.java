@@ -172,6 +172,7 @@ public class Helper {
 		this.done(mark);
 		return res;
 	}
+	
 	/* waitForXxxStatus */
 	
 	
@@ -190,6 +191,8 @@ public class Helper {
 
 		private String s;
 		private int m;
+		private long startTime;
+		private long endTime;
 
 		public InProgress(String s, int m) {
 			this.s = s;
@@ -198,6 +201,7 @@ public class Helper {
 
 		@Override
 		public void run() {
+			this.startTime = System.currentTimeMillis();
 			while (true) {
 				StringBuffer bb = new StringBuffer("\b\b\b");
 				for (int i = 0; i < s.length(); i++) {
@@ -206,6 +210,8 @@ public class Helper {
 				System.out.print(new String(bb) + s + " " + processingCharacters[m % 4] + " ");
 				m++;
 				if (progressStop == true) {
+					this.endTime = System.currentTimeMillis();
+					System.out.print(new String(bb) + s + " " + processingCharacters[m % 4] + " "+(this.endTime-this.startTime)+"(ms)");
 					progressStop = false;
 					break;
 				}

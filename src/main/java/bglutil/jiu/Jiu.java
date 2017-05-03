@@ -14,10 +14,12 @@ import java.util.TreeSet;
 
 import com.oracle.bmc.audit.Audit;
 import com.oracle.bmc.core.VirtualNetwork;
+import com.oracle.bmc.core.model.DhcpDnsOption;
 import com.oracle.bmc.core.model.DhcpOption;
 import com.oracle.bmc.core.model.DhcpOptions;
 import com.oracle.bmc.core.model.Drg;
 import com.oracle.bmc.core.model.EgressSecurityRule;
+import com.oracle.bmc.core.model.IcmpOptions;
 import com.oracle.bmc.core.model.IngressSecurityRule;
 import com.oracle.bmc.core.model.InternetGateway;
 import com.oracle.bmc.core.model.PortRange;
@@ -156,11 +158,11 @@ public class Jiu {
 			for(Subnet s:subnets){
 				SubnetAsset sa = SubnetAsset.getInstance(vn, id, s.getId());
 				sk.printResult(1, true, "SUBNET: <"+sa.getSn().getDisplayName()+">, "+sa.getSn().getCidrBlock()+", "+sa.getSn().getSubnetDomainName()+", "+sa.getAd().getName());
-				sk.printResult(2, true,"DHCP Options: <"+sa.getDhcp().getDisplayName()+">");
+				sk.printResult(2, true, "DHCP Options: <"+sa.getDhcp().getDisplayName()+">");
 				sk.printResult(2, true, "Route Table: <"+sa.getRt().getDisplayName()+">");
 				int sli=0;
 				for(SecurityList sl:sa.getSecLists()){
-					sk.printResult(2, true, "SecList: "+(++sli)+") <"+sl.getDisplayName()+">");
+					sk.printResult(2, true, "SecList: ("+(++sli)+") <"+sl.getDisplayName()+">");
 				}
 			}
 		}
@@ -287,7 +289,7 @@ public class Jiu {
 	 * 2. One VCN.
 	 * 3. One IGW.
 	 * 4. One Public Route Table.
-	 * 5. 
+	 * 5. One 
 	 * @param profile
 	 * @throws Exception
 	 */
@@ -300,11 +302,18 @@ public class Jiu {
 		UtilIam ui = new UtilIam();
 		UtilNetwork un = new UtilNetwork();
 		String compartmentId = Config.getConfigFileReader(profile).get("compartment");
+		// VCN
 		Vcn vcn = un.createVcn(vn, compartmentId, prefix+"vcn", "10.7.0.0/16", "Jiu - "+prefix+"vcn");
+		// IGW
 		InternetGateway igw = un.createIgw(vn, compartmentId, vcn.getId(), prefix+"igw");
+		// Public Route Table
 		RouteRule rr = RouteRule.builder().cidrBlock("0.0.0.0/0").networkEntityId(igw.getId()).build();
 		List<RouteRule> rrs = new ArrayList<RouteRule>(); rrs.add(rr);
-		un.createRouteTable(vn, compartmentId, vcn.getId(), prefix+"rt-public", rrs);
+		RouteTable publicRouteTable = un.createRouteTable(vn, compartmentId, vcn.getId(), prefix+"rt-public", rrs);
+		// Bastion SecList
+		List<IngressSecurityRule> ir = un.getLinuxBastionIngressSecurityRules();
+		List<EgressSecurityRule> er = un.getEgressAllowAllRules();
+		SecurityList bastionSecList = un.createSecList(vn, compartmentId, vcn.getId(), prefix+"seclist-bastion", ir, er);
 	}
 	
 	/**
