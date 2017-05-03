@@ -1,5 +1,6 @@
 package bglutil.jiu;
 
+import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -39,6 +40,9 @@ import com.oracle.bmc.identity.model.User;
 import com.oracle.bmc.identity.requests.ListApiKeysRequest;
 import com.oracle.bmc.identity.requests.ListUsersRequest;
 import com.oracle.bmc.identity.responses.ListUsersResponse;
+import com.oracle.bmc.objectstorage.ObjectStorage;
+import com.oracle.bmc.objectstorage.responses.PutObjectResponse;
+import com.oracle.bmc.objectstorage.transfer.UploadManager.UploadResponse;
 import com.oracle.bmc.ClientConfiguration;
 import com.oracle.bmc.Region;
 
@@ -64,7 +68,73 @@ public class Jiu {
 	private static Speaker sk = Speaker.CONSOLE;
 	private Helper h = new Helper();
 	
+	
+	// OBJECT STORAGE //
+	
+	/**
+	 * List all objects under a bucket.
+	 * @param bucketName
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void showObject(String bucketName, String profile) throws Exception{
+		h.help(bucketName, "<bucket> <profile>");
+		ObjectStorage os = Client.getObjectStorageClient(profile);
+		UtilObjectStorage uos = new UtilObjectStorage();
+		sk.printTitle(0, "All Objects in "+bucketName);
+		uos.printAllObjectsInBucket(os, bucketName, profile);
+	}
+	
+	/**
+	 * Upload a file to Object Storage
+	 * @param bucketName
+	 * @param objectName
+	 * @param filePath
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 * @throws InterruptedException
+	 */
+	public void simpleUpload(String bucketName, String objectName, String filePath, String profile) throws NumberFormatException, IOException, InterruptedException{
+		h.help(bucketName, "<bucket> <object> <file> <profile>");
+		ObjectStorage os = Client.getObjectStorageClient(profile);
+		UtilObjectStorage uos = new UtilObjectStorage();
+		h.processingV2("Uploading ... ");
+		UploadResponse ur = uos.upload(os, bucketName, objectName, new File(filePath), null, null, null, null);
+		h.done(h.BUILDING);
+		sk.printResult(0, true, "md5: "+ur.getContentMd5());
+		sk.printResult(0, true, "ETag: "+ur.getETag());
+	}
+	
+	/**
+	 * Download a from Object Storage
+	 * @param bucketName
+	 * @param objectName
+	 * @param filePath
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 * @throws InterruptedException
+	 */
+	public void simpleDownload(String bucketName, String objectName, String filePath, String profile) throws NumberFormatException, IOException, InterruptedException{
+		h.help(bucketName, "<bucket> <object> <file> <profile>");
+		ObjectStorage os = Client.getObjectStorageClient(profile);
+		UtilObjectStorage uos = new UtilObjectStorage();
+		h.processingV2("Downloading ... ");
+		uos.download(os, bucketName, objectName, new File(filePath));
+		h.done(h.BUILDING);
+	}
+	
+	
 	// SHOW //
+	
+	public void showBucket(String profile) throws Exception{
+		h.help(profile, "<profile>");
+		ObjectStorage os = Client.getObjectStorageClient(profile);
+		UtilObjectStorage uos = new UtilObjectStorage();
+		sk.printTitle(0, "All Buckets by profile "+profile);
+		uos.printAllBuckets(os, profile);
+	}
 	
 	/**
 	 * Show rules for sec list.
@@ -108,16 +178,23 @@ public class Jiu {
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void showVcn(String profile) throws Exception{
-		h.help(profile, "<profile-name>");
+	public void showVcn(String name, String profile) throws Exception{
+		h.help(name, "<vcn-name: ? means all> <profile-name>");
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
 		Identity id = Client.getIamClient(profile);
 		UtilNetwork un = new UtilNetwork();
 		UtilIam ui = new UtilIam();
 		String compartmentId = Config.getConfigFileReader(profile).get("compartment");
 		String compartmentName = ui.getCompartmentNameByOcid(id, compartmentId);
-		sk.printTitle(0, "All VCNs in Compartment - "+compartmentName);
+		sk.printTitle(0, name.equals("?")?"All":name+" VCN in Compartment - "+compartmentName);
+		boolean wildhunt = false;
+		if(name.equals("?")){
+			wildhunt = true;
+		}
 		for (Vcn v:un.getAllVcn(vn, compartmentId)){
+			if(!wildhunt && !name.toLowerCase().equals(v.getDisplayName().toLowerCase())){
+				continue;
+			}
 			VcnAsset va = VcnAsset.getInstance(vn, id, v.getId(), compartmentId);
 			sk.printResult(0, true, "VCN: <"+va.getName()+">, "+va.getCidr()+", "+va.getDomainName()+", "+va.getVcn().getLifecycleState().getValue()+", "+va.getVcn().getTimeCreated().toString());
 			sk.printResult(1, true, "OCID: "+va.getOcid());
@@ -495,18 +572,6 @@ public class Jiu {
 		Helper.search(args[0]);
 
 		return;
-	}
-	
-	// TESTER //
-	/**
-	 * For internal testing only.
-	 */
-	public void test() throws Exception{
-		String profile = "default";
-		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
-		UtilNetwork un =  new UtilNetwork();
-		//un.secListRemoveIngressBastionTcpPort(vn, "ocid1.securitylist.oc1.phx.aaaaaaaavuh6elfbcmdw7x2przeciqguinwpshoapoppeeu64sb3ugb6tuaq","22");
-		un.secListAddIngressBastionTcpPort(vn, "ocid1.securitylist.oc1.phx.aaaaaaaavuh6elfbcmdw7x2przeciqguinwpshoapoppeeu64sb3ugb6tuaq","22");
 	}
 
 	public static void main(String[] args) throws Exception {

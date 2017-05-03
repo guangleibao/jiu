@@ -9,6 +9,8 @@ import com.oracle.bmc.core.VirtualNetwork;
 import com.oracle.bmc.core.VirtualNetworkClient;
 import com.oracle.bmc.identity.Identity;
 import com.oracle.bmc.identity.IdentityClient;
+import com.oracle.bmc.objectstorage.ObjectStorage;
+import com.oracle.bmc.objectstorage.ObjectStorageClient;
 
 /**
  * Client builder. Region determined by default configuration file.
@@ -16,6 +18,12 @@ import com.oracle.bmc.identity.IdentityClient;
  *
  */
 public class Client {
+	
+	public static ObjectStorage getObjectStorageClient(String profile) throws NumberFormatException, IOException{
+		ObjectStorage os = new ObjectStorageClient(Config.getAuthProvider(profile.toUpperCase()), Config.getClientConfig(profile));
+		os.setRegion(Region.fromRegionId(Config.getConfigFileReader(profile.toUpperCase()).get("region")));
+		return os;
+	}
 	
 	/**
 	 * Audit service client.

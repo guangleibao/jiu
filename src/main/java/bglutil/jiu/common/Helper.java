@@ -35,8 +35,8 @@ import bglutil.jiu.Jiu;
  */
 public class Helper {
 	
-	private char building = Character.toChars(9749)[0];
-	private char removing = Character.toChars(9762)[0];
+	public static char BUILDING = Character.toChars(9749)[0];
+	public static char REMOVING = Character.toChars(9762)[0];
 	
 	/* progressStop bean */
 	private boolean progressStop;
@@ -111,7 +111,7 @@ public class Helper {
 	 * @param mark
 	 * @throws InterruptedException
 	 */
-	private void done(char mark) throws InterruptedException{
+	public void done(char mark) throws InterruptedException{
 		this.setProgressStop(true);
 		Thread.sleep(1000);
 		System.out.println(" DONE "+mark);
@@ -120,7 +120,7 @@ public class Helper {
 	/* waitForXxxStatus */
 	
 	public GetDhcpOptionsResponse waitForDhcpOptionsStatus(VirtualNetwork vn, String dhcpId, DhcpOptions.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
-		char mark = tearDown?this.removing:this.building;
+		char mark = tearDown?this.REMOVING:this.BUILDING;
 		VirtualNetworkWaiters slw = vn.getWaiters();
 		this.processingV2(waitMessage+" ... ");
 		GetDhcpOptionsResponse res = slw.forDhcpOptions(GetDhcpOptionsRequest.builder().dhcpId(dhcpId).build(), state).execute();
@@ -129,7 +129,7 @@ public class Helper {
 	}
 	
 	public GetRouteTableResponse waitForRouteTableStatus(VirtualNetwork vn, String rtId, RouteTable.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
-		char mark = tearDown?this.removing:this.building;
+		char mark = tearDown?this.REMOVING:this.BUILDING;
 		VirtualNetworkWaiters slw = vn.getWaiters();
 		this.processingV2(waitMessage+" ... ");
 		GetRouteTableResponse res = slw.forRouteTable(GetRouteTableRequest.builder().rtId(rtId).build(), state).execute();
@@ -138,7 +138,7 @@ public class Helper {
 	}
 	
 	public GetInternetGatewayResponse waitForIgwStatus(VirtualNetwork vn, String igwId, InternetGateway.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
-		char mark = tearDown?this.removing:this.building;
+		char mark = tearDown?this.REMOVING:this.BUILDING;
 		VirtualNetworkWaiters slw = vn.getWaiters();
 		this.processingV2(waitMessage+" ... ");
 		GetInternetGatewayResponse res = slw.forInternetGateway(GetInternetGatewayRequest.builder().igId(igwId).build(), state).execute();
@@ -147,7 +147,7 @@ public class Helper {
 	}
 	
 	public GetSecurityListResponse waitForSecurityListStatus(VirtualNetwork vn, String secListId, SecurityList.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
-		char mark = tearDown?this.removing:this.building;
+		char mark = tearDown?this.REMOVING:this.BUILDING;
 		VirtualNetworkWaiters slw = vn.getWaiters();
 		this.processingV2(waitMessage+" ... ");
 		GetSecurityListResponse res = slw.forSecurityList(GetSecurityListRequest.builder().securityListId(secListId).build(),state).execute();
@@ -156,7 +156,7 @@ public class Helper {
 	}
 	
 	public GetVcnResponse waitForVcnStatus(VirtualNetwork vn, String vcnId, Vcn.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
-		char mark = tearDown?this.removing:this.building;
+		char mark = tearDown?this.REMOVING:this.BUILDING;
 		VirtualNetworkWaiters vnw = vn.getWaiters();
 		this.processingV2(waitMessage+" ... ");
 		GetVcnResponse res = vnw.forVcn(GetVcnRequest.builder().vcnId(vcnId).build(), state).execute();
@@ -165,7 +165,7 @@ public class Helper {
 	}
 	
 	public GetCompartmentResponse waitForCompartmentStatus(Identity id, String compartmentId, Compartment.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
-		char mark = tearDown?this.removing:this.building;
+		char mark = tearDown?this.REMOVING:this.BUILDING;
 		IdentityWaiters iw = id.getWaiters();
 		this.processingV2(waitMessage+" ... ");
 		GetCompartmentResponse res = iw.forCompartment(GetCompartmentRequest.builder().compartmentId(compartmentId).build(), state).execute();
@@ -181,7 +181,7 @@ public class Helper {
 	 * @param s
 	 * @return
 	 */
-	private Thread processingV2(String s) {
+	public Thread processingV2(String s) {
 		InProgress ip = new InProgress(Character.toChars(9608)[0]+" "+s, 1);
 		ip.start();
 		return ip;
