@@ -32,6 +32,7 @@ import com.oracle.bmc.core.requests.CreateSubnetRequest;
 import com.oracle.bmc.core.requests.CreateVcnRequest;
 import com.oracle.bmc.core.requests.DeleteRouteTableRequest;
 import com.oracle.bmc.core.requests.DeleteSecurityListRequest;
+import com.oracle.bmc.core.requests.DeleteSubnetRequest;
 import com.oracle.bmc.core.requests.DeleteVcnRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
 import com.oracle.bmc.core.requests.ListRouteTablesRequest;
@@ -49,6 +50,7 @@ import com.oracle.bmc.core.responses.GetDhcpOptionsResponse;
 import com.oracle.bmc.core.responses.GetInternetGatewayResponse;
 import com.oracle.bmc.core.responses.GetRouteTableResponse;
 import com.oracle.bmc.core.responses.GetSecurityListResponse;
+import com.oracle.bmc.core.responses.GetSubnetResponse;
 import com.oracle.bmc.core.responses.GetVcnResponse;
 import com.oracle.bmc.core.responses.ListSubnetsResponse;
 import com.oracle.bmc.core.responses.ListVcnsResponse;
@@ -299,16 +301,19 @@ public class UtilNetwork extends UtilMain {
 	 * @param securityListIds
 	 * @param description
 	 * @return
+	 * @throws Exception 
 	 */
 	public Subnet createSubnet(VirtualNetwork vn, String compartmentId, String vcnId, String name, String dnsLabel,
 			String cidr, String availabilityDomain, String dhcpOptionsId, String routeTableId,
-			List<String> securityListIds, String description) {
-		CreateSubnetResponse res = vn.createSubnet(CreateSubnetRequest.builder()
+			List<String> securityListIds, String description) throws Exception {
+		CreateSubnetResponse csr = vn.createSubnet(CreateSubnetRequest.builder()
 				.createSubnetDetails(CreateSubnetDetails.builder().availabilityDomain(availabilityDomain)
 						.cidrBlock(cidr).compartmentId(compartmentId).dhcpOptionsId(dhcpOptionsId).displayName(name)
 						.dnsLabel(dnsLabel).routeTableId(routeTableId).vcnId(vcnId).securityListIds(securityListIds)
 						.build())
 				.build());
+		String subnetId = csr.getSubnet().getId();
+		GetSubnetResponse res = h.waitForSubnetStatus(vn, subnetId, Subnet.LifecycleState.Available, "Creating Subnet "+name, false);
 		return res.getSubnet();
 	}
 
@@ -443,6 +448,14 @@ public class UtilNetwork extends UtilMain {
 				String defaultRouteTableId = v.getDefaultRouteTableId();
 				String defaultDhcpId = v.getDefaultDhcpOptionsId();
 				String defaultSecList = v.getDefaultSecurityListId();
+				// Remove subnets
+				List<Subnet> sns = vn
+						.listSubnets(ListSubnetsRequest.builder().compartmentId(compartmentId).vcnId(v.getId()).build())
+						.getItems();
+				for(Subnet sn:sns){
+					vn.deleteSubnet(DeleteSubnetRequest.builder().subnetId(sn.getId()).build());
+					h.waitForSubnetStatus(vn, sn.getId(), Subnet.LifecycleState.Terminated, "Deleting Subnet "+sn.getDisplayName(), true);
+				}
 				// Remove route tables.
 				List<RouteTable> rts = vn
 						.listRouteTables(ListRouteTablesRequest.builder().compartmentId(compartmentId).vcnId(v.getId()).build())

@@ -36,8 +36,10 @@ import com.oracle.bmc.core.requests.GetInternetGatewayRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
 import com.oracle.bmc.identity.Identity;
 import com.oracle.bmc.identity.model.ApiKey;
+import com.oracle.bmc.identity.model.AvailabilityDomain;
 import com.oracle.bmc.identity.model.User;
 import com.oracle.bmc.identity.requests.ListApiKeysRequest;
+import com.oracle.bmc.identity.requests.ListAvailabilityDomainsRequest;
 import com.oracle.bmc.identity.requests.ListUsersRequest;
 import com.oracle.bmc.identity.responses.ListUsersResponse;
 import com.oracle.bmc.objectstorage.ObjectStorage;
@@ -366,7 +368,8 @@ public class Jiu {
 	 * 2. One VCN.
 	 * 3. One IGW.
 	 * 4. One Public Route Table.
-	 * 5. One 
+	 * 5. One Bastion security list.
+	 * 6. Six Subnets.
 	 * @param profile
 	 * @throws Exception
 	 */
@@ -391,6 +394,29 @@ public class Jiu {
 		List<IngressSecurityRule> ir = un.getLinuxBastionIngressSecurityRules();
 		List<EgressSecurityRule> er = un.getEgressAllowAllRules();
 		SecurityList bastionSecList = un.createSecList(vn, compartmentId, vcn.getId(), prefix+"seclist-bastion", ir, er);
+		List<String> bastionSecLists = new ArrayList<String>();
+		bastionSecLists.add(bastionSecList.getId());
+		List<String> defaultSecLists = new ArrayList<String>();
+		defaultSecLists.add(vcn.getDefaultSecurityListId());
+		// 6 subnets.
+		List<AvailabilityDomain> ads = ui.getAllAd(id, profile);
+		String snpub = prefix+"snpub";
+		Subnet[] pubSubnets = new Subnet[3];
+		for(int i=0;i<3;i++){
+			pubSubnets[i] = un.createSubnet(vn, compartmentId, vcn.getId(), 
+				snpub+i, snpub+i, 
+				"10.7."+i+".0/24", ads.get(i).getName(), 
+				vcn.getDefaultDhcpOptionsId(), publicRouteTable.getId(), bastionSecLists, "Jiu - "+snpub+i);
+		}
+		String snpri = prefix+"snpri";
+		Subnet[] priSubnets = new Subnet[3];
+		for(int i=0;i<3;i++){
+			priSubnets[i] = un.createSubnet(vn, compartmentId, vcn.getId(), 
+				snpri+i, snpri+i, 
+				"10.7."+(i+3)+".0/24", ads.get(i).getName(), 
+				vcn.getDefaultDhcpOptionsId(), vcn.getDefaultRouteTableId(), defaultSecLists, "Jiu - "+snpub+i);
+		}
+		sk.printTitle(0, "Infrastructure - "+prefix+" created.");
 	}
 	
 	/**
@@ -453,7 +479,7 @@ public class Jiu {
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
 		UtilNetwork un = new UtilNetwork();
 		un.deleteVcnByNamePrefix(vn, Config.getConfigFileReader(profile).get("compartment"), namePrefix);
-		sk.printResult(0, true, "VCN with name prefix "+namePrefix+" DESTROYED.");
+		sk.printTitle(0, "VCN with name prefix "+namePrefix+" DESTROYED.");
 	}
 	
 	/**

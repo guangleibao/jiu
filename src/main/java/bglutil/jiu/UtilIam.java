@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.List;
 
 import com.oracle.bmc.identity.Identity;
+import com.oracle.bmc.identity.model.AvailabilityDomain;
 import com.oracle.bmc.identity.model.Compartment;
 import com.oracle.bmc.identity.model.CreateCompartmentDetails;
 import com.oracle.bmc.identity.model.User;
@@ -11,6 +12,7 @@ import com.oracle.bmc.identity.requests.CreateCompartmentRequest;
 import com.oracle.bmc.identity.requests.GetCompartmentRequest;
 import com.oracle.bmc.identity.requests.GetUserRequest;
 import com.oracle.bmc.identity.requests.ListApiKeysRequest;
+import com.oracle.bmc.identity.requests.ListAvailabilityDomainsRequest;
 import com.oracle.bmc.identity.requests.ListCompartmentsRequest;
 import com.oracle.bmc.identity.requests.ListUsersRequest;
 import com.oracle.bmc.identity.responses.CreateCompartmentResponse;
@@ -32,6 +34,17 @@ public class UtilIam extends UtilMain{
 	}
 	
 	// GETTER //
+	
+	/**
+	 * Get All AD.
+	 * @param id
+	 * @param profile
+	 * @return
+	 * @throws IOException
+	 */
+	public List<AvailabilityDomain> getAllAd(Identity id, String profile) throws IOException{
+		return id.listAvailabilityDomains(ListAvailabilityDomainsRequest.builder().compartmentId(Config.getConfigFileReader(profile).get("compartment")).build()).getItems();
+	}
 	
 	/**
 	 * Convert IAM user OCID to user name.

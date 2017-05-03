@@ -9,16 +9,19 @@ import com.oracle.bmc.core.model.DhcpOptions;
 import com.oracle.bmc.core.model.InternetGateway;
 import com.oracle.bmc.core.model.RouteTable;
 import com.oracle.bmc.core.model.SecurityList;
+import com.oracle.bmc.core.model.Subnet;
 import com.oracle.bmc.core.model.Vcn;
 import com.oracle.bmc.core.requests.GetDhcpOptionsRequest;
 import com.oracle.bmc.core.requests.GetInternetGatewayRequest;
 import com.oracle.bmc.core.requests.GetRouteTableRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
+import com.oracle.bmc.core.requests.GetSubnetRequest;
 import com.oracle.bmc.core.requests.GetVcnRequest;
 import com.oracle.bmc.core.responses.GetDhcpOptionsResponse;
 import com.oracle.bmc.core.responses.GetInternetGatewayResponse;
 import com.oracle.bmc.core.responses.GetRouteTableResponse;
 import com.oracle.bmc.core.responses.GetSecurityListResponse;
+import com.oracle.bmc.core.responses.GetSubnetResponse;
 import com.oracle.bmc.core.responses.GetVcnResponse;
 import com.oracle.bmc.identity.Identity;
 import com.oracle.bmc.identity.IdentityWaiters;
@@ -119,6 +122,15 @@ public class Helper {
 	
 	/* waitForXxxStatus */
 	
+	public GetSubnetResponse waitForSubnetStatus(VirtualNetwork vn, String subnetId, Subnet.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
+		char mark = tearDown?this.REMOVING:this.BUILDING;
+		VirtualNetworkWaiters slw = vn.getWaiters();
+		this.processingV2(waitMessage+" ... ");
+		GetSubnetResponse res = slw.forSubnet(GetSubnetRequest.builder().subnetId(subnetId).build(), state).execute();
+		this.done(mark);
+		return res;
+	}
+	
 	public GetDhcpOptionsResponse waitForDhcpOptionsStatus(VirtualNetwork vn, String dhcpId, DhcpOptions.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
 		char mark = tearDown?this.REMOVING:this.BUILDING;
 		VirtualNetworkWaiters slw = vn.getWaiters();
@@ -211,7 +223,8 @@ public class Helper {
 				m++;
 				if (progressStop == true) {
 					this.endTime = System.currentTimeMillis();
-					System.out.print(new String(bb) + s + " " + processingCharacters[m % 4] + " "+(this.endTime-this.startTime)+"(ms)");
+					//System.out.print(new String(bb) + s + " " + processingCharacters[m % 4] + " "+(this.endTime-this.startTime)+"(ms)");
+					System.out.print(new String(bb) + s + " "+(this.endTime-this.startTime)+"(ms)");
 					progressStop = false;
 					break;
 				}
