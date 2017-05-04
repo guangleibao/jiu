@@ -1,10 +1,8 @@
 package bglutil.jiu;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.TreeMap;
-import java.util.TreeSet;
 
 import com.oracle.bmc.core.Compute;
 import com.oracle.bmc.core.VirtualNetwork;

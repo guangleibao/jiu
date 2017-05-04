@@ -15,6 +15,7 @@ Configure **`~/.oraclebmc/config`** file as following:
 		bastionseclist=<bastion_seclist_ocid>
 		connectiontimeout=
 		readtimeout=
+		public_key_file=<public_key_file_location_for_vm>
 
 + Check Oracle official site for Bare Metal Cloud SDK download and install.
 + Modify `pom-sample.xml` and rename it to `pom.xml` to build and run.
