@@ -16,38 +16,10 @@
     </dependency>
     <dependency>
         <groupId>com.oracle.bmc.sdk</groupId>
-        <artifactId>oracle-bmc-java-sdk-audit</artifactId>
+        <artifactId>oracle-bmc-java-sdk-full</artifactId>
         <version>1.2.7</version>
-        <systemPath>${bmc-audit.jar.location}</systemPath>
+        <systemPath>${bmc.jar.location}</systemPath>
         <scope>system</scope>
-    </dependency>
-    <dependency>
-      <groupId>com.oracle.bmc.sdk</groupId>
-      <artifactId>oracle-bmc-java-sdk</artifactId>
-      <version>1.2.7</version>
-      <systemPath>${bmc-core.jar.location}</systemPath>
-      <scope>system</scope>
-    </dependency>
-    <dependency>
-      <groupId>com.oracle.bmc.sdk</groupId>
-      <artifactId>oracle-bmc-java-sdk-common</artifactId>
-      <version>1.2.7</version>
-      <systemPath>${bmc-common.jar.location}</systemPath>
-      <scope>system</scope>
-    </dependency>
-    <dependency>
-      <groupId>com.oracle.bmc.sdk</groupId>
-      <artifactId>oracle-bmc-java-sdk-identity</artifactId>
-      <version>1.2.7</version>
-      <systemPath>${bmc-identity.jar.location}</systemPath>
-      <scope>system</scope>
-    </dependency>
-    <dependency>
-      <groupId>com.oracle.bmc.sdk</groupId>
-      <artifactId>oracle-bmc-java-sdk-objectstorage</artifactId>
-      <version>1.2.7</version>
-      <systemPath>${bmc-objectstorage.jar.location}</systemPath>
-      <scope>system</scope>
     </dependency>
     <dependency>
       <groupId>com.google.guava</groupId>
@@ -72,6 +44,11 @@
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
+      <version>1.7.25</version>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-simple</artifactId>
       <version>1.7.25</version>
     </dependency>
     <dependency>
@@ -108,6 +85,11 @@
       <groupId>org.bouncycastle</groupId>
       <artifactId>bcmail-jdk15on</artifactId>
       <version>1.56</version>
+    </dependency>
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <version>1.16.16</version>
     </dependency>
   </dependencies>
   <build>
@@ -155,10 +137,6 @@
     </plugins>
   </build>
   <properties>
-    <bmc-audit.jar.location>/path/to/oracle-bmc-java-sdk-audit-1.2.7.jar</bmc-audit.jar.location>
-    <bmc-core.jar.location>/path/to/oracle-bmc-java-sdk-core-1.2.7.jar</bmc-core.jar.location>
-    <bmc-common.jar.location>/path/to/oracle-bmc-java-sdk-common-1.2.7.jar</bmc-common.jar.location>
-    <bmc-identity.jar.location>/path/to/oracle-bmc-java-sdk-identity-1.2.7.jar</bmc-identity.jar.location>
-    <bmc-objectstorage.jar.location>/path/to/oracle-bmc-java-sdk-objectstorage-1.2.7.jar</bmc-objectstorage.jar.location>
+    <bmc.jar.location>/PATH/TO/oracle-bmc-java-sdk-full-1.2.7.jar</bmc.jar.location>
   </properties>
 </project>

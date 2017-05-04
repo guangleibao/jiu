@@ -1,8 +1,10 @@
 # Guanglei's Oracle Bare Metal Cloud Tool for Demo and for Fun #
 
-**No file in this repo provides production warranty!! It's just for FUN.**
+**No file in this repo provides production warranty!! It's just for fun.**
 
-Configure **`~/.oraclebmc/config`** file as following:
++ Check [Oracle official site](https://docs.us-phoenix-1.oraclecloud.com/Content/API/SDKDocs/javasdk.htm) for Bare Metal Cloud Java SDK download, configure and install.
+
+Sample config file **`~/.oraclebmc/config`** to run `Jiu`:
 
 		[DEFAULT]
 		tenancy=<tenancy_ocid>
@@ -17,5 +19,7 @@ Configure **`~/.oraclebmc/config`** file as following:
 		readtimeout=
 		public_key_file=<public_key_file_location_for_vm>
 
-+ Check Oracle official site for Bare Metal Cloud SDK download and install.
-+ Modify `pom-sample.xml` and rename it to `pom.xml` to build and run.
+
++ Edit `pom-sample.xml` to correct the `<bmc.jar.location>` property and rename it to `pom.xml` to build.
+
++ Main class is `bglutil.jiu.Jiu`, zero args execution shows the help message.
