@@ -8,12 +8,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.SimpleTimeZone;
 import java.util.TimeZone;
 import java.util.TreeSet;
 
 import com.oracle.bmc.audit.Audit;
+import com.oracle.bmc.core.Compute;
 import com.oracle.bmc.core.VirtualNetwork;
 import com.oracle.bmc.core.model.DhcpDnsOption;
 import com.oracle.bmc.core.model.DhcpOption;
@@ -21,19 +23,25 @@ import com.oracle.bmc.core.model.DhcpOptions;
 import com.oracle.bmc.core.model.Drg;
 import com.oracle.bmc.core.model.EgressSecurityRule;
 import com.oracle.bmc.core.model.IcmpOptions;
+import com.oracle.bmc.core.model.Image;
 import com.oracle.bmc.core.model.IngressSecurityRule;
+import com.oracle.bmc.core.model.Instance;
 import com.oracle.bmc.core.model.InternetGateway;
 import com.oracle.bmc.core.model.PortRange;
 import com.oracle.bmc.core.model.RouteRule;
 import com.oracle.bmc.core.model.RouteTable;
 import com.oracle.bmc.core.model.SecurityList;
+import com.oracle.bmc.core.model.Shape;
 import com.oracle.bmc.core.model.Subnet;
 import com.oracle.bmc.core.model.TcpOptions;
 import com.oracle.bmc.core.model.UdpOptions;
 import com.oracle.bmc.core.model.Vcn;
 import com.oracle.bmc.core.requests.GetDrgRequest;
+import com.oracle.bmc.core.requests.GetInstanceRequest;
 import com.oracle.bmc.core.requests.GetInternetGatewayRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
+import com.oracle.bmc.core.requests.ListInstancesRequest;
+import com.oracle.bmc.core.responses.GetInstanceResponse;
 import com.oracle.bmc.identity.Identity;
 import com.oracle.bmc.identity.model.ApiKey;
 import com.oracle.bmc.identity.model.AvailabilityDomain;
@@ -51,6 +59,7 @@ import com.oracle.bmc.Region;
 import bglutil.jiu.common.Helper;
 import bglutil.jiu.common.Speaker;
 import bglutil.jiu.common.SubnetAsset;
+import bglutil.jiu.common.UtilMain;
 import bglutil.jiu.common.VcnAsset;
 
 /**
@@ -127,8 +136,28 @@ public class Jiu {
 		h.done(h.BUILDING);
 	}
 	
-	
 	// SHOW //
+	
+	public void showImage(String profile) throws NumberFormatException, IOException{
+		h.help(profile, "<profile>");
+		Compute c = Client.getComputeClient(profile);
+		UtilCompute uc = new UtilCompute();
+		sk.printTitle(0, "All Images");
+		for(Image i:uc.getAllImage(c, Config.getConfigFileReader(profile).get("compartment"))){
+			sk.printResult(0, true, i.getDisplayName()+", "+i.getOperatingSystem()+", "+i.getOperatingSystemVersion());
+			sk.printResult(1, true, i.getId());
+		}
+	}
+	
+	public void showShape(String profile) throws NumberFormatException, IOException{
+		h.help(profile, "<profile>");
+		Compute c = Client.getComputeClient(profile);
+		UtilCompute uc = new UtilCompute();
+		sk.printTitle(0, "All Shapes");
+		for(String s:uc.getAllShape(c, Config.getConfigFileReader(profile).get("compartment"))){
+			sk.printResult(0, true, s);
+		}
+	}
 	
 	public void showBucket(String profile) throws Exception{
 		h.help(profile, "<profile>");
@@ -188,7 +217,7 @@ public class Jiu {
 		UtilIam ui = new UtilIam();
 		String compartmentId = Config.getConfigFileReader(profile).get("compartment");
 		String compartmentName = ui.getCompartmentNameByOcid(id, compartmentId);
-		sk.printTitle(0, name.equals("?")?"All":name+" VCN in Compartment - "+compartmentName);
+		sk.printTitle(0, (name.equals("?")?"All":name)+" VCN in Compartment - "+compartmentName);
 		boolean wildhunt = false;
 		if(name.equals("?")){
 			wildhunt = true;
@@ -370,6 +399,7 @@ public class Jiu {
 	 * 4. One Public Route Table.
 	 * 5. One Bastion security list.
 	 * 6. Six Subnets.
+	 * 7. One Oracle Linux 7.3 Bastion.
 	 * @param profile
 	 * @throws Exception
 	 */
@@ -398,7 +428,7 @@ public class Jiu {
 		bastionSecLists.add(bastionSecList.getId());
 		List<String> defaultSecLists = new ArrayList<String>();
 		defaultSecLists.add(vcn.getDefaultSecurityListId());
-		// 6 subnets.
+		// 6 Subnets.
 		List<AvailabilityDomain> ads = ui.getAllAd(id, profile);
 		String snpub = prefix+"snpub";
 		Subnet[] pubSubnets = new Subnet[3];
@@ -416,6 +446,19 @@ public class Jiu {
 				"10.7."+(i+3)+".0/24", ads.get(i).getName(), 
 				vcn.getDefaultDhcpOptionsId(), vcn.getDefaultRouteTableId(), defaultSecLists, "Jiu - "+snpub+i);
 		}
+		// 1 Bastion.
+		Compute c = Client.getComputeClient(profile);
+		UtilCompute uc = new UtilCompute();
+		Image vmImage = null;
+		for(Image img:uc.getAllImage(c, compartmentId)){
+			if(img.getOperatingSystem().equals("Oracle Linux") && img.getOperatingSystemVersion().equals("7.3")){
+				vmImage = img;
+				break;
+			}
+		}
+		GetInstanceResponse bastionGis = uc.createVmInstance(c, compartmentId, pubSubnets[0].getId(), 
+				prefix+"bastion", vmImage.getId(), "VM.Standard1.2", 
+				Config.publicKeyToString(profile), ads.get(0).getName(), Instance.LifecycleState.Running);
 		sk.printTitle(0, "Infrastructure - "+prefix+" created.");
 	}
 	
@@ -478,8 +521,19 @@ public class Jiu {
 		sk.printTitle(0, "Delete VCN with Name Prefix "+namePrefix);
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
 		UtilNetwork un = new UtilNetwork();
-		un.deleteVcnByNamePrefix(vn, Config.getConfigFileReader(profile).get("compartment"), namePrefix);
+		Compute c = Client.getComputeClient(profile);
+		un.deleteVcnByNamePrefix(vn, c, Config.getConfigFileReader(profile).get("compartment"), namePrefix);
 		sk.printTitle(0, "VCN with name prefix "+namePrefix+" DESTROYED.");
+	}
+	
+	public void restGet(String apiVersion, String path, String resource, String profile) throws IOException{
+		h.help(apiVersion, "<api-version> <path> <resource> <profile>");
+		sk.printTitle(0, "/"+apiVersion+"/"+path+"/"+resource);
+		String[] ret = UtilMain.restGet(apiVersion, path, resource, profile);
+		sk.printResult(0, true, "Response Headers:");
+		System.out.println(ret[0]);
+		sk.printResult(0, true, "Response Body:");
+		System.out.println(ret[1]);
 	}
 	
 	/**

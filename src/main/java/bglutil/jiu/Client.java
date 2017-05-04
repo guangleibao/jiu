@@ -5,6 +5,8 @@ import java.io.IOException;
 import com.oracle.bmc.Region;
 import com.oracle.bmc.audit.Audit;
 import com.oracle.bmc.audit.AuditClient;
+import com.oracle.bmc.core.Compute;
+import com.oracle.bmc.core.ComputeClient;
 import com.oracle.bmc.core.VirtualNetwork;
 import com.oracle.bmc.core.VirtualNetworkClient;
 import com.oracle.bmc.identity.Identity;
@@ -19,6 +21,26 @@ import com.oracle.bmc.objectstorage.ObjectStorageClient;
  */
 public class Client {
 	
+	/**
+	 * Compute service client.
+	 * @param profile
+	 * @return
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
+	public static Compute getComputeClient(String profile) throws NumberFormatException, IOException{
+		Compute c = new ComputeClient(Config.getAuthProvider(profile.toUpperCase()), Config.getClientConfig(profile));
+		c.setRegion(Region.fromRegionId(Config.getConfigFileReader(profile.toUpperCase()).get("region")));
+		return c;
+	}
+	
+	/**
+	 * ObjectStorage service client.
+	 * @param profile
+	 * @return
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
 	public static ObjectStorage getObjectStorageClient(String profile) throws NumberFormatException, IOException{
 		ObjectStorage os = new ObjectStorageClient(Config.getAuthProvider(profile.toUpperCase()), Config.getClientConfig(profile));
 		os.setRegion(Region.fromRegionId(Config.getConfigFileReader(profile.toUpperCase()).get("region")));

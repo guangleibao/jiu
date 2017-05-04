@@ -62,7 +62,9 @@ public class UtilAudit extends UtilMain {
 					if (except==null || !event.getRequestResource().toLowerCase().contains(except)) {
 						String ocid = event.getPrincipalId(); // ocid length zero means NULL.
 						sk.printResult(0, true, "(WHO): " + (ocid.length()==0?"None":ui.getUsernameByOcid(idService, ocid)+", "+ocid));
-						sk.printResult(1, true, "(WHEN): Event: " + event.getEventTime()+" | Response: "+event.getResponseHeaders().get("Date").get(0));
+						if(event.getResponseHeaders()!=null && event.getResponseHeaders().get("Date")!=null){
+							sk.printResult(1, true, "(WHEN): Event: " + event.getEventTime()+" | Response: "+event.getResponseHeaders().get("Date").get(0));
+						}
 						sk.printResult(1, true,
 								"(WHAT): " + event.getRequestAction() + " " + event.getRequestResource());
 						Map<String, List<String>> parameters = event.getRequestParameters();

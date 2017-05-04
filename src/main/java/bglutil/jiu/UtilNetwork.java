@@ -1,8 +1,12 @@
 package bglutil.jiu;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
+import com.oracle.bmc.core.Compute;
 import com.oracle.bmc.core.VirtualNetwork;
 import com.oracle.bmc.core.model.CreateDhcpDetails;
 import com.oracle.bmc.core.model.CreateInternetGatewayDetails;
@@ -14,6 +18,7 @@ import com.oracle.bmc.core.model.DhcpOption;
 import com.oracle.bmc.core.model.DhcpOptions;
 import com.oracle.bmc.core.model.EgressSecurityRule;
 import com.oracle.bmc.core.model.IngressSecurityRule;
+import com.oracle.bmc.core.model.Instance;
 import com.oracle.bmc.core.model.InternetGateway;
 import com.oracle.bmc.core.model.PortRange;
 import com.oracle.bmc.core.model.RouteRule;
@@ -24,21 +29,28 @@ import com.oracle.bmc.core.model.TcpOptions;
 import com.oracle.bmc.core.model.UdpOptions;
 import com.oracle.bmc.core.model.UpdateSecurityListDetails;
 import com.oracle.bmc.core.model.Vcn;
+import com.oracle.bmc.core.model.VnicAttachment;
 import com.oracle.bmc.core.requests.CreateDhcpOptionsRequest;
 import com.oracle.bmc.core.requests.CreateInternetGatewayRequest;
 import com.oracle.bmc.core.requests.CreateRouteTableRequest;
 import com.oracle.bmc.core.requests.CreateSecurityListRequest;
 import com.oracle.bmc.core.requests.CreateSubnetRequest;
 import com.oracle.bmc.core.requests.CreateVcnRequest;
+import com.oracle.bmc.core.requests.DeleteDhcpOptionsRequest;
 import com.oracle.bmc.core.requests.DeleteRouteTableRequest;
 import com.oracle.bmc.core.requests.DeleteSecurityListRequest;
 import com.oracle.bmc.core.requests.DeleteSubnetRequest;
 import com.oracle.bmc.core.requests.DeleteVcnRequest;
+import com.oracle.bmc.core.requests.GetInstanceRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
+import com.oracle.bmc.core.requests.GetVnicRequest;
+import com.oracle.bmc.core.requests.ListDhcpOptionsRequest;
+import com.oracle.bmc.core.requests.ListInstancesRequest;
 import com.oracle.bmc.core.requests.ListRouteTablesRequest;
 import com.oracle.bmc.core.requests.ListSecurityListsRequest;
 import com.oracle.bmc.core.requests.ListSubnetsRequest;
 import com.oracle.bmc.core.requests.ListVcnsRequest;
+import com.oracle.bmc.core.requests.ListVnicAttachmentsRequest;
 import com.oracle.bmc.core.requests.UpdateSecurityListRequest;
 import com.oracle.bmc.core.responses.CreateDhcpOptionsResponse;
 import com.oracle.bmc.core.responses.CreateInternetGatewayResponse;
@@ -433,28 +445,56 @@ public class UtilNetwork extends UtilMain {
 	}
 
 	/**
-	 * Delete all VCN with matching display name prefix.
+	 * Delete all VCN with matching display name prefix and cascade delete all resource within it.
 	 * 
 	 * @param vn
 	 * @param compartmentId
 	 * @param vcnNamePrefix
 	 * @throws Exception
 	 */
-	public void deleteVcnByNamePrefix(VirtualNetwork vn, String compartmentId, String vcnNamePrefix) throws Exception {
+	public void deleteVcnByNamePrefix(VirtualNetwork vn, Compute c, String compartmentId, String vcnNamePrefix) throws Exception {
 		ListVcnsResponse res = vn.listVcns(ListVcnsRequest.builder().compartmentId(compartmentId).build());
+		UtilCompute uc = new UtilCompute();
 		for (Vcn v : res.getItems()) {
 			if (v.getDisplayName().startsWith(vcnNamePrefix)) {
 				// Check defaults.
 				String defaultRouteTableId = v.getDefaultRouteTableId();
 				String defaultDhcpId = v.getDefaultDhcpOptionsId();
 				String defaultSecList = v.getDefaultSecurityListId();
+				// Remove VM instances
+				List<Instance> instances = c.listInstances(ListInstancesRequest.builder().compartmentId(compartmentId).build()).getItems();
+				TreeMap<String,String> snToInstance = new TreeMap<String,String>(); 
+				for(Instance vm:instances){
+					if(!vm.getLifecycleState().getValue().equals(Instance.LifecycleState.Terminated.getValue())){
+						List<VnicAttachment> vnicAttachments = c.listVnicAttachments(ListVnicAttachmentsRequest.builder().compartmentId(compartmentId).instanceId(vm.getId()).build()).getItems();
+						for(VnicAttachment va:vnicAttachments){
+							snToInstance.put(va.getSubnetId(), vm.getId());
+						}
+					}
+				}
 				// Remove subnets
 				List<Subnet> sns = vn
 						.listSubnets(ListSubnetsRequest.builder().compartmentId(compartmentId).vcnId(v.getId()).build())
 						.getItems();
 				for(Subnet sn:sns){
+					for(String snId:snToInstance.keySet()){
+						if(snId.equals(sn.getId())){
+							uc.killInstanceById(c, compartmentId, snToInstance.get(snId));
+						}
+					}
 					vn.deleteSubnet(DeleteSubnetRequest.builder().subnetId(sn.getId()).build());
 					h.waitForSubnetStatus(vn, sn.getId(), Subnet.LifecycleState.Terminated, "Deleting Subnet "+sn.getDisplayName(), true);
+				}
+				// Remove dhcp options.
+				List<DhcpOptions> dos = vn
+						.listDhcpOptions(ListDhcpOptionsRequest.builder().compartmentId(compartmentId).vcnId(v.getId()).build())
+						.getItems();
+				for(DhcpOptions d:dos){
+					if(d.getId().equals(defaultDhcpId)){
+						continue;
+					}
+					vn.deleteDhcpOptions(DeleteDhcpOptionsRequest.builder().dhcpId(d.getId()).build());
+					h.waitForDhcpOptionsStatus(vn, d.getId(), DhcpOptions.LifecycleState.Terminated, "Deleting DHCP Options "+d.getDisplayName(), true);
 				}
 				// Remove route tables.
 				List<RouteTable> rts = vn

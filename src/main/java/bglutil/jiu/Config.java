@@ -1,5 +1,9 @@
 package bglutil.jiu;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -15,6 +19,25 @@ import com.oracle.bmc.auth.SimplePrivateKeySupplier;
  *
  */
 public class Config {
+	
+	public static String publicKeyToString(String profile){
+		StringBuffer sb = new StringBuffer();
+		String line = null;
+		try {
+			BufferedReader br = new BufferedReader(new FileReader(Config.getConfigFileReader(profile).get("public_key_file")));
+			line = br.readLine();
+			while(line!=null){
+				sb.append(line); // No newline appending.
+				line = br.readLine();
+			}
+			br.close();
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return new String(sb);
+	}
 	
 	/**
 	 * Get auth provider from default configuration file. Profile sensitive.
