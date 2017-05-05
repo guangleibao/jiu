@@ -27,6 +27,7 @@ import com.oracle.bmc.core.model.TcpOptions;
 import com.oracle.bmc.core.model.UdpOptions;
 import com.oracle.bmc.core.model.UpdateSecurityListDetails;
 import com.oracle.bmc.core.model.Vcn;
+import com.oracle.bmc.core.model.Vnic;
 import com.oracle.bmc.core.model.VnicAttachment;
 import com.oracle.bmc.core.requests.CreateDhcpOptionsRequest;
 import com.oracle.bmc.core.requests.CreateInternetGatewayRequest;
@@ -81,6 +82,16 @@ public class UtilNetwork extends UtilMain {
 
 	// Facet //
 	
+	public List<IngressSecurityRule> getInternalWebserverIngressSecurityRules(String allowSourceCidr){
+		PortRange ssh = PortRange.builder().min(22).max(22).build();
+		TcpOptions sshInbound = TcpOptions.builder().destinationPortRange(ssh).build();
+		IngressSecurityRule isrWebserverSsh = IngressSecurityRule.builder().source(allowSourceCidr).protocol("6").tcpOptions(sshInbound).build();
+		IngressSecurityRule isrWebserverIcmp = IngressSecurityRule.builder().source(allowSourceCidr).protocol("1").build();
+		List<IngressSecurityRule> ir = new ArrayList<IngressSecurityRule>();
+		ir.add(isrWebserverSsh); ir.add(isrWebserverIcmp);
+		return ir;
+	}
+	
 	public List<IngressSecurityRule> getLinuxBastionIngressSecurityRules(){
 		PortRange ssh = PortRange.builder().min(22).max(22).build();
 		TcpOptions sshInbound = TcpOptions.builder().destinationPortRange(ssh).build();
@@ -99,6 +110,9 @@ public class UtilNetwork extends UtilMain {
 	}
 	
 	// GETTER //
+	
+	
+	
 	/**
 	 * Print rules for security list.
 	 * @param sl

@@ -36,10 +36,12 @@ import com.oracle.bmc.core.model.Subnet;
 import com.oracle.bmc.core.model.TcpOptions;
 import com.oracle.bmc.core.model.UdpOptions;
 import com.oracle.bmc.core.model.Vcn;
+import com.oracle.bmc.core.model.Vnic;
 import com.oracle.bmc.core.requests.GetDrgRequest;
 import com.oracle.bmc.core.requests.GetInstanceRequest;
 import com.oracle.bmc.core.requests.GetInternetGatewayRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
+import com.oracle.bmc.core.requests.GetVnicRequest;
 import com.oracle.bmc.core.requests.ListInstancesRequest;
 import com.oracle.bmc.core.responses.GetInstanceResponse;
 import com.oracle.bmc.identity.Identity;
@@ -397,9 +399,11 @@ public class Jiu {
 	 * 2. One VCN.
 	 * 3. One IGW.
 	 * 4. One Public Route Table.
-	 * 5. One Bastion security list.
-	 * 6. Six Subnets.
-	 * 7. One Oracle Linux 7.3 Bastion.
+	 * 5. One Bastion security list with rules.
+	 * 6. One Web Server security list with rules.
+	 * 7. Six Subnets.
+	 * 8. One Oracle Linux 7.3 Bastion. Public
+	 * 9. Three Oracle Linux 7.3 Web Server. Private.
 	 * @param profile
 	 * @throws Exception
 	 */
@@ -421,13 +425,15 @@ public class Jiu {
 		List<RouteRule> rrs = new ArrayList<RouteRule>(); rrs.add(rr);
 		RouteTable publicRouteTable = un.createRouteTable(vn, compartmentId, vcn.getId(), prefix+"rt-public", rrs);
 		// Bastion SecList
-		List<IngressSecurityRule> ir = un.getLinuxBastionIngressSecurityRules();
-		List<EgressSecurityRule> er = un.getEgressAllowAllRules();
-		SecurityList bastionSecList = un.createSecList(vn, compartmentId, vcn.getId(), prefix+"seclist-bastion", ir, er);
+		List<IngressSecurityRule> irBastion = un.getLinuxBastionIngressSecurityRules();
+		List<EgressSecurityRule> erAllowAll = un.getEgressAllowAllRules();
+		List<IngressSecurityRule> irWebserver = un.getInternalWebserverIngressSecurityRules(vcn.getCidrBlock());
+		SecurityList bastionSecList = un.createSecList(vn, compartmentId, vcn.getId(), prefix+"seclist-bastion", irBastion, erAllowAll);
 		List<String> bastionSecLists = new ArrayList<String>();
 		bastionSecLists.add(bastionSecList.getId());
-		List<String> defaultSecLists = new ArrayList<String>();
-		defaultSecLists.add(vcn.getDefaultSecurityListId());
+		SecurityList webserverSecList = un.createSecList(vn, compartmentId, vcn.getId(), prefix+"seclist-webserver", irWebserver, erAllowAll);
+		List<String> webserverSecLists = new ArrayList<String>();
+		webserverSecLists.add(webserverSecList.getId());
 		// 6 Subnets.
 		List<AvailabilityDomain> ads = ui.getAllAd(id, profile);
 		String snpub = prefix+"snpub";
@@ -444,7 +450,7 @@ public class Jiu {
 			priSubnets[i] = un.createSubnet(vn, compartmentId, vcn.getId(), 
 				snpri+i, snpri+i, 
 				"10.7."+(i+3)+".0/24", ads.get(i).getName(), 
-				vcn.getDefaultDhcpOptionsId(), vcn.getDefaultRouteTableId(), defaultSecLists, "Jiu - "+snpub+i);
+				vcn.getDefaultDhcpOptionsId(), vcn.getDefaultRouteTableId(), webserverSecLists, "Jiu - "+snpub+i);
 		}
 		// 1 Bastion.
 		Compute c = Client.getComputeClient(profile);
@@ -459,6 +465,18 @@ public class Jiu {
 		GetInstanceResponse bastionGis = uc.createVmInstance(c, compartmentId, pubSubnets[0].getId(), 
 				prefix+"bastion", vmImage.getId(), "VM.Standard1.2", 
 				Config.publicKeyToString(profile), ads.get(0).getName(), Instance.LifecycleState.Running);
+		String bastionId = bastionGis.getInstance().getId();
+		List<Vnic> vnics = uc.getVnicByInstanceId(c, vn, bastionId, compartmentId);
+		for(Vnic v:vnics){
+			sk.printResult(1, true, "@AD: "+v.getAvailabilityDomain()+", HostName: "+v.getHostnameLabel()+", "+v.getPrivateIp()+", "+v.getPublicIp());
+		}
+		// 3 Web Servers.
+		GetInstanceResponse[] webGis = new GetInstanceResponse[3];
+		for(int i=0;i<3;i++){
+			webGis[i]= uc.createVmInstance(c, compartmentId, priSubnets[i].getId(), 
+				prefix+"web"+i, vmImage.getId(), "VM.Standard1.1", 
+				Config.publicKeyToString(profile), ads.get(i).getName(), Instance.LifecycleState.Provisioning);
+		}
 		sk.printTitle(0, "Infrastructure - "+prefix+" created.");
 	}
 	

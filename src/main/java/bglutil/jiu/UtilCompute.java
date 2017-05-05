@@ -1,34 +1,24 @@
 package bglutil.jiu;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
-import javax.annotation.Priority;
-import javax.ws.rs.Priorities;
-import javax.ws.rs.client.ClientBuilder;
-import javax.ws.rs.client.ClientRequestContext;
-import javax.ws.rs.client.ClientRequestFilter;
-import javax.ws.rs.client.Invocation;
-import javax.ws.rs.client.WebTarget;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.MultivaluedMap;
-import javax.ws.rs.core.Response;
 
-import com.google.common.net.UrlEscapers;
 import com.oracle.bmc.core.Compute;
+import com.oracle.bmc.core.VirtualNetwork;
 import com.oracle.bmc.core.model.Image;
 import com.oracle.bmc.core.model.Instance;
 import com.oracle.bmc.core.model.LaunchInstanceDetails;
 import com.oracle.bmc.core.model.Shape;
+import com.oracle.bmc.core.model.Vnic;
 import com.oracle.bmc.core.model.VnicAttachment;
 import com.oracle.bmc.core.requests.GetInstanceRequest;
+import com.oracle.bmc.core.requests.GetVnicRequest;
+import com.oracle.bmc.core.requests.GetVolumeAttachmentRequest;
 import com.oracle.bmc.core.requests.LaunchInstanceRequest;
 import com.oracle.bmc.core.requests.ListImagesRequest;
 import com.oracle.bmc.core.requests.ListShapesRequest;
@@ -36,13 +26,9 @@ import com.oracle.bmc.core.requests.ListVnicAttachmentsRequest;
 import com.oracle.bmc.core.requests.TerminateInstanceRequest;
 import com.oracle.bmc.core.responses.GetInstanceResponse;
 import com.oracle.bmc.core.responses.LaunchInstanceResponse;
-import com.oracle.bmc.core.responses.TerminateInstanceResponse;
-import com.oracle.bmc.http.signing.DefaultRequestSigner;
-import com.oracle.bmc.http.signing.RequestSigner;
+
 
 import bglutil.jiu.common.UtilMain;
-import lombok.RequiredArgsConstructor;
-import lombok.NonNull;
 
 public class UtilCompute extends UtilMain{
 	public UtilCompute() {
@@ -50,6 +36,17 @@ public class UtilCompute extends UtilMain{
 	}
 	
 	// GETTER //
+	
+	public List<Vnic> getVnicByInstanceId(Compute c, VirtualNetwork vn, String instanceId, String compartmentId){
+		List<VnicAttachment> atchs = c.listVnicAttachments(ListVnicAttachmentsRequest.builder().compartmentId(compartmentId).instanceId(instanceId).build()).getItems();
+		List<Vnic> vnics = new ArrayList<Vnic>();
+		for(VnicAttachment va: atchs){
+			String vid = va.getVnicId();
+			Vnic v = vn.getVnic(GetVnicRequest.builder().vnicId(vid).build()).getVnic();
+			vnics.add(v);
+		}
+		return vnics;
+	}
 	
 	public String getInstanceNameById(Compute c, String instanceId){
 		return c.getInstance(GetInstanceRequest.builder().instanceId(instanceId).build()).getInstance().getDisplayName();
