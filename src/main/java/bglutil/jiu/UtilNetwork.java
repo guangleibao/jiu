@@ -27,7 +27,6 @@ import com.oracle.bmc.core.model.TcpOptions;
 import com.oracle.bmc.core.model.UdpOptions;
 import com.oracle.bmc.core.model.UpdateSecurityListDetails;
 import com.oracle.bmc.core.model.Vcn;
-import com.oracle.bmc.core.model.Vnic;
 import com.oracle.bmc.core.model.VnicAttachment;
 import com.oracle.bmc.core.requests.CreateDhcpOptionsRequest;
 import com.oracle.bmc.core.requests.CreateInternetGatewayRequest;
@@ -40,9 +39,7 @@ import com.oracle.bmc.core.requests.DeleteRouteTableRequest;
 import com.oracle.bmc.core.requests.DeleteSecurityListRequest;
 import com.oracle.bmc.core.requests.DeleteSubnetRequest;
 import com.oracle.bmc.core.requests.DeleteVcnRequest;
-import com.oracle.bmc.core.requests.GetInstanceRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
-import com.oracle.bmc.core.requests.GetVnicRequest;
 import com.oracle.bmc.core.requests.ListDhcpOptionsRequest;
 import com.oracle.bmc.core.requests.ListInstancesRequest;
 import com.oracle.bmc.core.requests.ListRouteTablesRequest;
@@ -152,7 +149,6 @@ public class UtilNetwork extends UtilMain {
 			}
 		}
 		sk.printResult(3, true, "Egress:");
-		int ern = 0;
 		for (EgressSecurityRule esr : sl.getEgressSecurityRules()) {
 			sk.printResult(4, true, "("+(++rn)+") stateless-" + esr.getIsStateless() + ": protocol-" + esr.getProtocol() + " dest:"
 					+ esr.getDestination());

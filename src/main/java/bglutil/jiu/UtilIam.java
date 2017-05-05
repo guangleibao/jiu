@@ -7,18 +7,14 @@ import com.oracle.bmc.identity.Identity;
 import com.oracle.bmc.identity.model.AvailabilityDomain;
 import com.oracle.bmc.identity.model.Compartment;
 import com.oracle.bmc.identity.model.CreateCompartmentDetails;
-import com.oracle.bmc.identity.model.User;
 import com.oracle.bmc.identity.requests.CreateCompartmentRequest;
 import com.oracle.bmc.identity.requests.GetCompartmentRequest;
 import com.oracle.bmc.identity.requests.GetUserRequest;
-import com.oracle.bmc.identity.requests.ListApiKeysRequest;
 import com.oracle.bmc.identity.requests.ListAvailabilityDomainsRequest;
 import com.oracle.bmc.identity.requests.ListCompartmentsRequest;
-import com.oracle.bmc.identity.requests.ListUsersRequest;
 import com.oracle.bmc.identity.responses.CreateCompartmentResponse;
 import com.oracle.bmc.identity.responses.GetCompartmentResponse;
 import com.oracle.bmc.identity.responses.GetUserResponse;
-import com.oracle.bmc.identity.responses.ListUsersResponse;
 
 import bglutil.jiu.common.UtilMain;
 

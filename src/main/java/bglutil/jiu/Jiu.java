@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import java.util.SimpleTimeZone;
 import java.util.TimeZone;
@@ -17,43 +16,32 @@ import java.util.TreeSet;
 import com.oracle.bmc.audit.Audit;
 import com.oracle.bmc.core.Compute;
 import com.oracle.bmc.core.VirtualNetwork;
-import com.oracle.bmc.core.model.DhcpDnsOption;
 import com.oracle.bmc.core.model.DhcpOption;
 import com.oracle.bmc.core.model.DhcpOptions;
 import com.oracle.bmc.core.model.Drg;
 import com.oracle.bmc.core.model.EgressSecurityRule;
-import com.oracle.bmc.core.model.IcmpOptions;
 import com.oracle.bmc.core.model.Image;
 import com.oracle.bmc.core.model.IngressSecurityRule;
 import com.oracle.bmc.core.model.Instance;
 import com.oracle.bmc.core.model.InternetGateway;
-import com.oracle.bmc.core.model.PortRange;
 import com.oracle.bmc.core.model.RouteRule;
 import com.oracle.bmc.core.model.RouteTable;
 import com.oracle.bmc.core.model.SecurityList;
-import com.oracle.bmc.core.model.Shape;
 import com.oracle.bmc.core.model.Subnet;
-import com.oracle.bmc.core.model.TcpOptions;
-import com.oracle.bmc.core.model.UdpOptions;
 import com.oracle.bmc.core.model.Vcn;
 import com.oracle.bmc.core.model.Vnic;
 import com.oracle.bmc.core.requests.GetDrgRequest;
-import com.oracle.bmc.core.requests.GetInstanceRequest;
 import com.oracle.bmc.core.requests.GetInternetGatewayRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
-import com.oracle.bmc.core.requests.GetVnicRequest;
-import com.oracle.bmc.core.requests.ListInstancesRequest;
 import com.oracle.bmc.core.responses.GetInstanceResponse;
 import com.oracle.bmc.identity.Identity;
 import com.oracle.bmc.identity.model.ApiKey;
 import com.oracle.bmc.identity.model.AvailabilityDomain;
 import com.oracle.bmc.identity.model.User;
 import com.oracle.bmc.identity.requests.ListApiKeysRequest;
-import com.oracle.bmc.identity.requests.ListAvailabilityDomainsRequest;
 import com.oracle.bmc.identity.requests.ListUsersRequest;
 import com.oracle.bmc.identity.responses.ListUsersResponse;
 import com.oracle.bmc.objectstorage.ObjectStorage;
-import com.oracle.bmc.objectstorage.responses.PutObjectResponse;
 import com.oracle.bmc.objectstorage.transfer.UploadManager.UploadResponse;
 import com.oracle.bmc.ClientConfiguration;
 import com.oracle.bmc.Region;
@@ -114,7 +102,7 @@ public class Jiu {
 		UtilObjectStorage uos = new UtilObjectStorage();
 		h.processingV2("Uploading ... ");
 		UploadResponse ur = uos.upload(os, bucketName, objectName, new File(filePath), null, null, null, null);
-		h.done(h.BUILDING);
+		h.done(Helper.BUILDING);
 		sk.printResult(0, true, "md5: "+ur.getContentMd5());
 		sk.printResult(0, true, "ETag: "+ur.getETag());
 	}
@@ -135,7 +123,7 @@ public class Jiu {
 		UtilObjectStorage uos = new UtilObjectStorage();
 		h.processingV2("Downloading ... ");
 		uos.download(os, bucketName, objectName, new File(filePath));
-		h.done(h.BUILDING);
+		h.done(Helper.BUILDING);
 	}
 	
 	// SHOW //
@@ -145,7 +133,7 @@ public class Jiu {
 		Compute c = Client.getComputeClient(profile);
 		UtilCompute uc = new UtilCompute();
 		sk.printTitle(0, "All Images");
-		for(Image i:uc.getAllImage(c, Config.getConfigFileReader(profile).get("compartment"))){
+		for(Image i:uc.getAllImage(c, Config.getMyCompartmentId(profile))){
 			sk.printResult(0, true, i.getDisplayName()+", "+i.getOperatingSystem()+", "+i.getOperatingSystemVersion());
 			sk.printResult(1, true, i.getId());
 		}
@@ -156,7 +144,7 @@ public class Jiu {
 		Compute c = Client.getComputeClient(profile);
 		UtilCompute uc = new UtilCompute();
 		sk.printTitle(0, "All Shapes");
-		for(String s:uc.getAllShape(c, Config.getConfigFileReader(profile).get("compartment"))){
+		for(String s:uc.getAllShape(c, Config.getMyCompartmentId(profile))){
 			sk.printResult(0, true, s);
 		}
 	}
@@ -217,7 +205,7 @@ public class Jiu {
 		Identity id = Client.getIamClient(profile);
 		UtilNetwork un = new UtilNetwork();
 		UtilIam ui = new UtilIam();
-		String compartmentId = Config.getConfigFileReader(profile).get("compartment");
+		String compartmentId = Config.getMyCompartmentId(profile);
 		String compartmentName = ui.getCompartmentNameByOcid(id, compartmentId);
 		sk.printTitle(0, (name.equals("?")?"All":name)+" VCN in Compartment - "+compartmentName);
 		boolean wildhunt = false;
@@ -387,7 +375,7 @@ public class Jiu {
 		sk.printTitle(0, "Create VCN - "+name);
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
 		UtilNetwork un = new UtilNetwork();
-		Vcn vcn = un.createVcn(vn, Config.getConfigFileReader(profile).get("compartment"), name, cidr, "Jiu - "+name);
+		Vcn vcn = un.createVcn(vn, Config.getMyCompartmentId(profile), name, cidr, "Jiu - "+name);
 		sk.printResult(0, true, vcn.getCidrBlock()+", "+vcn.getVcnDomainName()+", "+vcn.getId()+" CREATED.");
 	}
 	
@@ -415,7 +403,7 @@ public class Jiu {
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
 		UtilIam ui = new UtilIam();
 		UtilNetwork un = new UtilNetwork();
-		String compartmentId = Config.getConfigFileReader(profile).get("compartment");
+		String compartmentId = Config.getMyCompartmentId(profile);
 		// VCN
 		Vcn vcn = un.createVcn(vn, compartmentId, prefix+"vcn", "10.7.0.0/16", "Jiu - "+prefix+"vcn");
 		// IGW
@@ -522,7 +510,7 @@ public class Jiu {
 		sk.printTitle(0, "Delete Security List with Name Prefix "+namePrefix+" in VCN "+vcnName);
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
 		UtilNetwork un = new UtilNetwork();
-		String compId = Config.getConfigFileReader(profile).get("compartment");
+		String compId = Config.getMyCompartmentId(profile);
 		String vcnId = un.getVcnIdByName(vn, vcnName, compId);
 		un.deleteSecurityListByNamePrefix(vn, compId, vcnId, namePrefix);
 		sk.printResult(0, true, "SecList with name prefix "+namePrefix+" DESTROYED.");
@@ -540,7 +528,7 @@ public class Jiu {
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
 		UtilNetwork un = new UtilNetwork();
 		Compute c = Client.getComputeClient(profile);
-		un.deleteVcnByNamePrefix(vn, c, Config.getConfigFileReader(profile).get("compartment"), namePrefix);
+		un.deleteVcnByNamePrefix(vn, c, Config.getMyCompartmentId(profile), namePrefix);
 		sk.printTitle(0, "VCN with name prefix "+namePrefix+" DESTROYED.");
 	}
 	

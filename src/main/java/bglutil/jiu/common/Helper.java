@@ -128,7 +128,7 @@ public class Helper {
 	/* waitForXxxStatus */
 	
 	public GetInstanceResponse waitForInstanceStatus(Compute c, String instanceId, Instance.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
-		char mark = tearDown?this.REMOVING:this.BUILDING;
+		char mark = tearDown?Helper.REMOVING:Helper.BUILDING;
 		ComputeWaiters cw = c.getWaiters();
 		this.processingV2(waitMessage+" ... ");
 		GetInstanceResponse res = cw.forInstance(GetInstanceRequest.builder().instanceId(instanceId).build(), state).execute();
@@ -137,7 +137,7 @@ public class Helper {
 	}
 	
 	public GetSubnetResponse waitForSubnetStatus(VirtualNetwork vn, String subnetId, Subnet.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
-		char mark = tearDown?this.REMOVING:this.BUILDING;
+		char mark = tearDown?Helper.REMOVING:Helper.BUILDING;
 		VirtualNetworkWaiters slw = vn.getWaiters();
 		this.processingV2(waitMessage+" ... ");
 		GetSubnetResponse res = slw.forSubnet(GetSubnetRequest.builder().subnetId(subnetId).build(), state).execute();
@@ -146,7 +146,7 @@ public class Helper {
 	}
 	
 	public GetDhcpOptionsResponse waitForDhcpOptionsStatus(VirtualNetwork vn, String dhcpId, DhcpOptions.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
-		char mark = tearDown?this.REMOVING:this.BUILDING;
+		char mark = tearDown?Helper.REMOVING:Helper.BUILDING;
 		VirtualNetworkWaiters slw = vn.getWaiters();
 		this.processingV2(waitMessage+" ... ");
 		GetDhcpOptionsResponse res = slw.forDhcpOptions(GetDhcpOptionsRequest.builder().dhcpId(dhcpId).build(), state).execute();
@@ -155,7 +155,7 @@ public class Helper {
 	}
 	
 	public GetRouteTableResponse waitForRouteTableStatus(VirtualNetwork vn, String rtId, RouteTable.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
-		char mark = tearDown?this.REMOVING:this.BUILDING;
+		char mark = tearDown?Helper.REMOVING:Helper.BUILDING;
 		VirtualNetworkWaiters slw = vn.getWaiters();
 		this.processingV2(waitMessage+" ... ");
 		GetRouteTableResponse res = slw.forRouteTable(GetRouteTableRequest.builder().rtId(rtId).build(), state).execute();
@@ -164,7 +164,7 @@ public class Helper {
 	}
 	
 	public GetInternetGatewayResponse waitForIgwStatus(VirtualNetwork vn, String igwId, InternetGateway.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
-		char mark = tearDown?this.REMOVING:this.BUILDING;
+		char mark = tearDown?Helper.REMOVING:Helper.BUILDING;
 		VirtualNetworkWaiters slw = vn.getWaiters();
 		this.processingV2(waitMessage+" ... ");
 		GetInternetGatewayResponse res = slw.forInternetGateway(GetInternetGatewayRequest.builder().igId(igwId).build(), state).execute();
@@ -173,7 +173,7 @@ public class Helper {
 	}
 	
 	public GetSecurityListResponse waitForSecurityListStatus(VirtualNetwork vn, String secListId, SecurityList.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
-		char mark = tearDown?this.REMOVING:this.BUILDING;
+		char mark = tearDown?Helper.REMOVING:Helper.BUILDING;
 		VirtualNetworkWaiters slw = vn.getWaiters();
 		this.processingV2(waitMessage+" ... ");
 		GetSecurityListResponse res = slw.forSecurityList(GetSecurityListRequest.builder().securityListId(secListId).build(),state).execute();
@@ -182,7 +182,7 @@ public class Helper {
 	}
 	
 	public GetVcnResponse waitForVcnStatus(VirtualNetwork vn, String vcnId, Vcn.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
-		char mark = tearDown?this.REMOVING:this.BUILDING;
+		char mark = tearDown?Helper.REMOVING:Helper.BUILDING;
 		VirtualNetworkWaiters vnw = vn.getWaiters();
 		this.processingV2(waitMessage+" ... ");
 		GetVcnResponse res = vnw.forVcn(GetVcnRequest.builder().vcnId(vcnId).build(), state).execute();
@@ -191,7 +191,7 @@ public class Helper {
 	}
 	
 	public GetCompartmentResponse waitForCompartmentStatus(Identity id, String compartmentId, Compartment.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
-		char mark = tearDown?this.REMOVING:this.BUILDING;
+		char mark = tearDown?Helper.REMOVING:Helper.BUILDING;
 		IdentityWaiters iw = id.getWaiters();
 		this.processingV2(waitMessage+" ... ");
 		GetCompartmentResponse res = iw.forCompartment(GetCompartmentRequest.builder().compartmentId(compartmentId).build(), state).execute();

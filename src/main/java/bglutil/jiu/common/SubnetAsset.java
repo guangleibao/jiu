@@ -16,8 +16,6 @@ import com.oracle.bmc.core.requests.GetSubnetRequest;
 import com.oracle.bmc.core.requests.GetVcnRequest;
 import com.oracle.bmc.identity.Identity;
 import com.oracle.bmc.identity.model.AvailabilityDomain;
-import com.oracle.bmc.identity.model.Compartment;
-import com.oracle.bmc.identity.requests.GetCompartmentRequest;
 
 /**
  * 

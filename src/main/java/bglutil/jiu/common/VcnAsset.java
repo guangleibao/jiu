@@ -10,7 +10,6 @@ import com.oracle.bmc.core.model.RouteTable;
 import com.oracle.bmc.core.model.SecurityList;
 import com.oracle.bmc.core.model.Subnet;
 import com.oracle.bmc.core.model.Vcn;
-import com.oracle.bmc.core.model.Vcn.LifecycleState;
 import com.oracle.bmc.core.requests.GetDhcpOptionsRequest;
 import com.oracle.bmc.core.requests.GetRouteTableRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
@@ -22,8 +21,6 @@ import com.oracle.bmc.core.requests.ListRouteTablesRequest;
 import com.oracle.bmc.core.requests.ListSecurityListsRequest;
 import com.oracle.bmc.core.requests.ListSubnetsRequest;
 import com.oracle.bmc.identity.Identity;
-import com.oracle.bmc.identity.model.Compartment;
-import com.oracle.bmc.identity.requests.GetCompartmentRequest;
 
 
 /**
