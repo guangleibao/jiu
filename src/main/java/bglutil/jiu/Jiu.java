@@ -42,6 +42,8 @@ import com.oracle.bmc.identity.model.User;
 import com.oracle.bmc.identity.requests.ListApiKeysRequest;
 import com.oracle.bmc.identity.requests.ListUsersRequest;
 import com.oracle.bmc.identity.responses.ListUsersResponse;
+import com.oracle.bmc.loadbalancer.LoadBalancer;
+import com.oracle.bmc.loadbalancer.model.LoadBalancerShape;
 import com.oracle.bmc.objectstorage.ObjectStorage;
 import com.oracle.bmc.objectstorage.transfer.UploadManager.UploadResponse;
 import com.oracle.bmc.ClientConfiguration;
@@ -129,6 +131,18 @@ public class Jiu {
 	
 	// SHOW //
 	
+	public void showLbShape(String profile) throws NumberFormatException, IOException{
+		h.help(profile, "<profile>");
+		UtilLB ulb = new UtilLB();
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
+		List<LoadBalancerShape> shapes = ulb.getAllLoadBalancerShapeName(lb, Config.getMyCompartmentId(profile));
+		sk.printTitle(0, "All Load Balancer Shapes");
+		for(LoadBalancerShape s:shapes){
+			sk.printResult(0, true, s.getName());
+		}
+		sk.printTitle(0, "End");
+	}
+	
 	public void showImage(String profile) throws NumberFormatException, IOException{
 		h.help(profile, "<profile>");
 		Compute c = Client.getComputeClient(profile);
@@ -138,6 +152,7 @@ public class Jiu {
 			sk.printResult(0, true, i.getDisplayName()+", "+i.getOperatingSystem()+", "+i.getOperatingSystemVersion());
 			sk.printResult(1, true, i.getId());
 		}
+		sk.printTitle(0, "End");
 	}
 	
 	public void showShape(String profile) throws NumberFormatException, IOException{
@@ -148,6 +163,7 @@ public class Jiu {
 		for(String s:uc.getAllShape(c, Config.getMyCompartmentId(profile))){
 			sk.printResult(0, true, s);
 		}
+		sk.printTitle(0, "End");
 	}
 	
 	public void showBucket(String profile) throws Exception{
@@ -156,6 +172,7 @@ public class Jiu {
 		UtilObjectStorage uos = new UtilObjectStorage();
 		sk.printTitle(0, "All Buckets by profile "+profile);
 		uos.printAllBuckets(os, profile);
+		sk.printTitle(0, "End");
 	}
 	
 	/**
@@ -171,6 +188,7 @@ public class Jiu {
 		SecurityList sl = vn.getSecurityList(GetSecurityListRequest.builder().securityListId(secListOcid).build()).getSecurityList();
 		sk.printTitle(1,"Security List:");
 		un.printSecListRules(sl);
+		sk.printTitle(0, "End");
 	}
 	
 	/**
@@ -193,6 +211,7 @@ public class Jiu {
 				
 			}
 		}
+		sk.printTitle(0, "End");
 	}
 	
 	/**
@@ -292,6 +311,7 @@ public class Jiu {
 		sk.printResult(0, true, "Connection Timeout (ms): "+cc.getConnectionTimeoutMillis());
 		sk.printResult(0, true, "Read Timeout (ms): "+cc.getReadTimeoutMillis());
 		sk.printResult(0, true, "Max Async Threads: "+cc.getMaxAsyncThreads());
+		sk.printTitle(0, "End");
 	}
 	
 	/**
@@ -303,6 +323,7 @@ public class Jiu {
 		for(Region r:Region.values()){
 			sk.printResult(0, true, "("+(++i)+") "+r.getRegionId());
 		}
+		sk.printTitle(0, "End");
 	}
 	
 	/**
@@ -314,6 +335,7 @@ public class Jiu {
 		h.help(profile, "<profile-name>");
 		sk.printTitle(0, "Profile " + profile);
 		sk.printResult(0, true, Config.getAuthProvider(profile).getKeyId());
+		sk.printTitle(0, "End");
 	}
 	
 	/**
@@ -328,6 +350,7 @@ public class Jiu {
 			tz = SimpleTimeZone.getTimeZone(id);
 			System.out.println(id+", ["+tz.getRawOffset()/(1000*60*60.0)+"]");
 		}
+		sk.printTitle(0, "End");
 	}
 	
 	/**
@@ -348,6 +371,7 @@ public class Jiu {
 			except = "auditEvents";
 		}
 		ua.printAuditEventByDateRange(a, Config.getMyCompartmentId(profile), new Date(System.currentTimeMillis() - Long.parseLong(lastMinutes)*60000), new Date(), format, except==null?null:except.toLowerCase(), i);
+		sk.printTitle(0, "End");
 	}
 	
 	/**
@@ -358,6 +382,7 @@ public class Jiu {
 		for (Object k : p.keySet()) {
 			System.out.println("[ " + k + " ] => ( " + p.getProperty((String) k) + " )");
 		}
+		sk.printTitle(0, "End");
 	}
 	
 	/**
@@ -373,9 +398,26 @@ public class Jiu {
 				System.out.println(c);
 			}
 		}
+		sk.printTitle(0, "End");
 	}
 	
 	// CREATOR //
+	
+	public void createLb(String name, String vcnName, String subnet1Name, String subnet2Name, String shape, String profile) throws Exception{
+		h.help(name, "<name> <vcn-name> <subnet-1-name> <subnet-2-name> <shape: 100Mbps|400Mbps|8000Mbps> <profile>");
+		sk.printTitle(0, "Create Load Balancer - "+name);
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilLB ulb = new UtilLB();
+		UtilNetwork un = new UtilNetwork();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		String vcnId = un.getVcnIdByName(vn, vcnName, compartmentId);
+		String subnet1Id = un.getSubnetIdByName(vn, subnet1Name, vcnId, compartmentId);
+		String subnet2Id = un.getSubnetIdByName(vn, subnet2Name, vcnId, compartmentId);
+		ulb.createLoadBalancer(lb, name, shape, subnet1Id, subnet2Id,compartmentId);
+		sk.printResult(0, true, "Load Balancer "+name+" created");
+		sk.printTitle(0, "End");
+	}
 	
 	/**
 	 * Create a new VCN by CIDR.
@@ -391,6 +433,7 @@ public class Jiu {
 		UtilNetwork un = new UtilNetwork();
 		Vcn vcn = un.createVcn(vn, Config.getMyCompartmentId(profile), name, cidr, "Jiu - "+name);
 		sk.printResult(0, true, vcn.getCidrBlock()+", "+vcn.getVcnDomainName()+", "+vcn.getId()+" CREATED.");
+		sk.printTitle(0, "End");
 	}
 	
 	// SETUP //
@@ -520,7 +563,7 @@ public class Jiu {
 		String compId = Config.getMyCompartmentId(profile);
 		String vcnId = un.getVcnIdByName(vn, vcnName, compId);
 		un.deleteRouteTableByNamePrefix(vn, compId, vcnId, namePrefix);
-		sk.printResult(0, true, "Route Table with name prefix "+namePrefix+" DESTROYED.");
+		sk.printTitle(0, "Route Table with name prefix "+namePrefix+" DESTROYED.");
 	}
 	
 	/**
@@ -538,7 +581,7 @@ public class Jiu {
 		String compId = Config.getMyCompartmentId(profile);
 		String vcnId = un.getVcnIdByName(vn, vcnName, compId);
 		un.deleteSecurityListByNamePrefix(vn, compId, vcnId, namePrefix);
-		sk.printResult(0, true, "SecList with name prefix "+namePrefix+" DESTROYED.");
+		sk.printTitle(0, "SecList with name prefix "+namePrefix+" DESTROYED.");
 	}
 	
 	/**

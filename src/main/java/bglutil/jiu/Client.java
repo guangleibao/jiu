@@ -11,6 +11,8 @@ import com.oracle.bmc.core.VirtualNetwork;
 import com.oracle.bmc.core.VirtualNetworkClient;
 import com.oracle.bmc.identity.Identity;
 import com.oracle.bmc.identity.IdentityClient;
+import com.oracle.bmc.loadbalancer.LoadBalancer;
+import com.oracle.bmc.loadbalancer.LoadBalancerClient;
 import com.oracle.bmc.objectstorage.ObjectStorage;
 import com.oracle.bmc.objectstorage.ObjectStorageClient;
 
@@ -20,6 +22,12 @@ import com.oracle.bmc.objectstorage.ObjectStorageClient;
  *
  */
 public class Client {
+	
+	public static LoadBalancer getLoadBalancerClient(String profile) throws NumberFormatException, IOException{
+		LoadBalancer lb = new LoadBalancerClient(Config.getAuthProvider(profile.toUpperCase()), Config.getClientConfig(profile));
+		lb.setRegion(Region.fromRegionId(Config.getConfigFileReader(profile.toUpperCase()).get("region")));
+		return lb;
+	}
 	
 	/**
 	 * Compute service client.

@@ -217,6 +217,27 @@ public class UtilNetwork extends UtilMain {
 		}
 		return ocid;
 	}
+	
+	/**
+	 * Get Subnet OCID by Subnet Name.
+	 * @param vn
+	 * @param subnetName
+	 * @param vcnId
+	 * @param compartmentId
+	 * @return
+	 */
+	public String getSubnetIdByName(VirtualNetwork vn, String subnetName, String vcnId, String compartmentId){
+		List<Subnet> subnets = vn.listSubnets(ListSubnetsRequest.builder().compartmentId(compartmentId)
+				.vcnId(vcnId).build()).getItems();
+		String id = null;
+		for(Subnet s:subnets){
+			if(s.getDisplayName().equals(subnetName)){
+				id = s.getId();
+				break;
+			}
+		}
+		return id;
+	}
 
 	/**
 	 * Get all VCN in a compartment.

@@ -33,6 +33,11 @@ import com.oracle.bmc.identity.IdentityWaiters;
 import com.oracle.bmc.identity.model.Compartment;
 import com.oracle.bmc.identity.requests.GetCompartmentRequest;
 import com.oracle.bmc.identity.responses.GetCompartmentResponse;
+import com.oracle.bmc.loadbalancer.LoadBalancer;
+import com.oracle.bmc.loadbalancer.LoadBalancerWaiters;
+import com.oracle.bmc.loadbalancer.model.WorkRequest;
+import com.oracle.bmc.loadbalancer.requests.GetWorkRequestRequest;
+import com.oracle.bmc.loadbalancer.responses.GetWorkRequestResponse;
 
 import bglutil.jiu.Jiu;
 
@@ -127,6 +132,15 @@ public class Helper {
 	}
 	
 	/* waitForXxxStatus */
+	
+	public GetWorkRequestResponse waitForWorkReqeustStatus(LoadBalancer lb, String workRequestId, String waitMessage, boolean tearDown) throws Exception{
+		char mark = tearDown?Helper.REMOVING:Helper.BUILDING;
+		LoadBalancerWaiters lbw = lb.getWaiters();
+		this.processingV2(waitMessage+" ... ");
+		GetWorkRequestResponse res = lbw.forWorkRequest(GetWorkRequestRequest.builder().workRequestId(workRequestId).build()).execute();
+		this.done(mark);
+		return res;
+	}
 	
 	public GetInstanceResponse waitForInstanceStatus(Compute c, String instanceId, Instance.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
 		char mark = tearDown?Helper.REMOVING:Helper.BUILDING;
