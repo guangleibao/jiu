@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.SimpleTimeZone;
 import java.util.TimeZone;
@@ -203,8 +204,10 @@ public class Jiu {
 		h.help(name, "<vcn-name: ? means all> <profile-name>");
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
 		Identity id = Client.getIamClient(profile);
+		Compute c = Client.getComputeClient(profile);
 		UtilNetwork un = new UtilNetwork();
 		UtilIam ui = new UtilIam();
+		UtilCompute uc = new UtilCompute();
 		String compartmentId = Config.getMyCompartmentId(profile);
 		String compartmentName = ui.getCompartmentNameByOcid(id, compartmentId);
 		sk.printTitle(0, (name.equals("?")?"All":name)+" VCN in Compartment - "+compartmentName);
@@ -262,8 +265,19 @@ public class Jiu {
 				for(SecurityList sl:sa.getSecLists()){
 					sk.printResult(2, true, "SecList: ("+(++sli)+") <"+sl.getDisplayName()+">");
 				}
+				// Instance detail
+				Map<Vnic,Instance> instances = un.getInstanceBySubnet(vn, c, s, Instance.LifecycleState.Running);
+				for(Vnic nic:instances.keySet()){
+					sk.printResult(2, true, Helper.STAR+" Machine: "
+							+instances.get(nic).getDisplayName()+", "
+							+nic.getPrivateIp()+", "
+							+nic.getPublicIp()+", "
+							+instances.get(nic).getShape()+", "
+							+uc.getImageNameById(c,instances.get(nic).getImageId()));
+				}
 			}
 		}
+		sk.printTitle(0, "End");
 	}
 	
 	/**
@@ -451,7 +465,7 @@ public class Jiu {
 			}
 		}
 		GetInstanceResponse bastionGis = uc.createVmInstance(c, compartmentId, pubSubnets[0].getId(), 
-				prefix+"bastion", vmImage.getId(), "VM.Standard1.2", 
+				prefix+"bastion", vmImage.getId(), "VM.Standard1.1", 
 				Config.publicKeyToString(profile), ads.get(0).getName(), Instance.LifecycleState.Running);
 		String bastionId = bastionGis.getInstance().getId();
 		List<Vnic> vnics = uc.getVnicByInstanceId(c, vn, bastionId, compartmentId);
@@ -497,6 +511,17 @@ public class Jiu {
 	}
 	
 	// DESTROYER //
+	
+	public void destroyRouteTableInVcn(String namePrefix, String vcnName, String profile) throws Exception{
+		h.help(namePrefix, "<route-table-name-refix> <vcn-name> <profile>");
+		sk.printTitle(0, "Delete Route Table with Name Prefix "+namePrefix+" in VCN "+vcnName);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilNetwork un = new UtilNetwork();
+		String compId = Config.getMyCompartmentId(profile);
+		String vcnId = un.getVcnIdByName(vn, vcnName, compId);
+		un.deleteRouteTableByNamePrefix(vn, compId, vcnId, namePrefix);
+		sk.printResult(0, true, "Route Table with name prefix "+namePrefix+" DESTROYED.");
+	}
 	
 	/**
 	 * Delete all SECLIST if matches the name prefix in profile compartment and specified VCN.

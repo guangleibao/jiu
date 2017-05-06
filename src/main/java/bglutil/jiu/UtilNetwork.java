@@ -1,6 +1,7 @@
 package bglutil.jiu;
 
 import java.util.ArrayList;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.TreeMap;
 
@@ -27,6 +28,7 @@ import com.oracle.bmc.core.model.TcpOptions;
 import com.oracle.bmc.core.model.UdpOptions;
 import com.oracle.bmc.core.model.UpdateSecurityListDetails;
 import com.oracle.bmc.core.model.Vcn;
+import com.oracle.bmc.core.model.Vnic;
 import com.oracle.bmc.core.model.VnicAttachment;
 import com.oracle.bmc.core.requests.CreateDhcpOptionsRequest;
 import com.oracle.bmc.core.requests.CreateInternetGatewayRequest;
@@ -109,6 +111,22 @@ public class UtilNetwork extends UtilMain {
 	// GETTER //
 	
 	
+	public Hashtable<Vnic,Instance> getInstanceBySubnet(VirtualNetwork vn, Compute c, Subnet subnet, Instance.LifecycleState state){
+		Hashtable<Vnic,Instance> vnicToInstance = new Hashtable<Vnic,Instance>();
+		UtilCompute uc = new UtilCompute();
+		List<Instance> instances = c.listInstances(ListInstancesRequest.builder().compartmentId(subnet.getCompartmentId()).build()).getItems();
+		for(Instance i:instances){
+			if(i.getLifecycleState().equals(state)){
+				List<Vnic> vnics = uc.getVnicByInstanceId(c, vn, i.getId(), subnet.getCompartmentId());
+				for(Vnic v:vnics){
+					if(v.getSubnetId().equals(subnet.getId())){
+						vnicToInstance.put(v, i);
+					}
+				}
+			}
+		}
+		return vnicToInstance;
+	}
 	
 	/**
 	 * Print rules for security list.
@@ -305,7 +323,8 @@ public class UtilNetwork extends UtilMain {
 		GetVcnResponse res = h.waitForVcnStatus(vn, vcnId, Vcn.LifecycleState.Available, "Creating VCN " + name, false);
 		return res.getVcn();
 	}
-
+	
+	
 	/**
 	 * Create a new Subnet with full parameters.
 	 * 

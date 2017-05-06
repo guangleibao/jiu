@@ -45,6 +45,7 @@ public class Helper {
 	
 	public static char BUILDING = Character.toChars(9749)[0];
 	public static char REMOVING = Character.toChars(9762)[0];
+	public static char STAR = Character.toChars(9733)[0];
 	
 	/* progressStop bean */
 	private boolean progressStop;

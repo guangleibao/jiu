@@ -16,6 +16,7 @@ import com.oracle.bmc.core.model.LaunchInstanceDetails;
 import com.oracle.bmc.core.model.Shape;
 import com.oracle.bmc.core.model.Vnic;
 import com.oracle.bmc.core.model.VnicAttachment;
+import com.oracle.bmc.core.requests.GetImageRequest;
 import com.oracle.bmc.core.requests.GetInstanceRequest;
 import com.oracle.bmc.core.requests.GetVnicRequest;
 import com.oracle.bmc.core.requests.LaunchInstanceRequest;
@@ -49,6 +50,10 @@ public class UtilCompute extends UtilMain{
 	
 	public String getInstanceNameById(Compute c, String instanceId){
 		return c.getInstance(GetInstanceRequest.builder().instanceId(instanceId).build()).getInstance().getDisplayName();
+	}
+	
+	public String getImageNameById(Compute c, String imageId){
+		return c.getImage(GetImageRequest.builder().imageId(imageId).build()).getImage().getDisplayName();
 	}
 	
 	public List<Image> getAllImage(Compute c, String compartmentId){
