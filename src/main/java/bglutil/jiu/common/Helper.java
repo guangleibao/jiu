@@ -1,7 +1,14 @@
 package bglutil.jiu.common;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.Base64;
+
 
 import com.oracle.bmc.core.Compute;
 import com.oracle.bmc.core.ComputeWaiters;
@@ -35,7 +42,6 @@ import com.oracle.bmc.identity.requests.GetCompartmentRequest;
 import com.oracle.bmc.identity.responses.GetCompartmentResponse;
 import com.oracle.bmc.loadbalancer.LoadBalancer;
 import com.oracle.bmc.loadbalancer.LoadBalancerWaiters;
-import com.oracle.bmc.loadbalancer.model.WorkRequest;
 import com.oracle.bmc.loadbalancer.requests.GetWorkRequestRequest;
 import com.oracle.bmc.loadbalancer.responses.GetWorkRequestResponse;
 
@@ -48,9 +54,12 @@ import bglutil.jiu.Jiu;
  */
 public class Helper {
 	
+	private Speaker sk = new Speaker(Speaker.RenderType.CONSOLE);
+	
 	public static char BUILDING = Character.toChars(9749)[0];
 	public static char REMOVING = Character.toChars(9762)[0];
 	public static char STAR = Character.toChars(9733)[0];
+	public static char FIST = Character.toChars(9994)[0];
 	
 	/* progressStop bean */
 	private boolean progressStop;
@@ -65,7 +74,63 @@ public class Helper {
 	/* progressStop bean */
 
 	private static String[] processingCharacters = new String[] { "\\", "|", "/", "-" };
-
+	
+	public String base64Encode(String plain){
+		byte[] b = null;
+		String base64 = null;
+		/*
+		try {
+			b=plain.getBytes("utf-8");
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}*/
+		b=plain.getBytes();
+		if(b!=null){
+			base64 = Base64.getUrlEncoder().encodeToString(b);
+		}
+		return base64;
+	}
+	
+	public String base64Decode(String base64){
+		byte[] b = null;
+		String plain = null;
+		if(base64 != null){
+			try {
+				b = Base64.getUrlDecoder().decode(base64);
+				plain = new String(b, "utf-8");
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+		return plain;
+	}
+	
+	public String base64EncodeFromFile(String file){
+		StringBuffer sb = new StringBuffer();
+		String line = null;
+		try {
+			BufferedReader br = new BufferedReader(new FileReader(new File(file)));
+			line = br.readLine();
+			while(line!=null){
+				sb.append(line+"\n");
+				line = br.readLine();
+			}
+			br.close();
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		String script = new String(sb);
+		sk.printTitle(0,"File Content:");
+		System.out.println(script);
+		if(script.equals("")){
+			throw new RuntimeException("File Content is NULL!!");
+		}
+		String base64 = this.base64Encode(script);
+		return base64;
+	}
+	
 	/**
 	 * Enable the '-h' option for methods which call help.
 	 * @param help
@@ -133,6 +198,7 @@ public class Helper {
 	
 	/* waitForXxxStatus */
 	
+	
 	public GetWorkRequestResponse waitForWorkReqeustStatus(LoadBalancer lb, String workRequestId, String waitMessage, boolean tearDown) throws Exception{
 		char mark = tearDown?Helper.REMOVING:Helper.BUILDING;
 		LoadBalancerWaiters lbw = lb.getWaiters();
@@ -140,6 +206,16 @@ public class Helper {
 		GetWorkRequestResponse res = lbw.forWorkRequest(GetWorkRequestRequest.builder().workRequestId(workRequestId).build()).execute();
 		this.done(mark);
 		return res;
+	}
+	
+	public GetInstanceResponse[] silentWaitForInstanceStatus(Compute c, String[] instanceIds, Instance.LifecycleState state, boolean tearDown) throws Exception{
+		ComputeWaiters cw = c.getWaiters();
+		GetInstanceResponse[] ress = new GetInstanceResponse[instanceIds.length]; 
+		for(int i=0;i<instanceIds.length;i++){
+			ress[i] = cw.forInstance(GetInstanceRequest.builder().instanceId(instanceIds[i]).build(), state).execute();
+			
+		}
+		return ress;
 	}
 	
 	public GetInstanceResponse waitForInstanceStatus(Compute c, String instanceId, Instance.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{

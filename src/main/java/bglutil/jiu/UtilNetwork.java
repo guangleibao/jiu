@@ -42,6 +42,7 @@ import com.oracle.bmc.core.requests.DeleteSecurityListRequest;
 import com.oracle.bmc.core.requests.DeleteSubnetRequest;
 import com.oracle.bmc.core.requests.DeleteVcnRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
+import com.oracle.bmc.core.requests.GetSubnetRequest;
 import com.oracle.bmc.core.requests.ListDhcpOptionsRequest;
 import com.oracle.bmc.core.requests.ListInstancesRequest;
 import com.oracle.bmc.core.requests.ListRouteTablesRequest;
@@ -64,6 +65,9 @@ import com.oracle.bmc.core.responses.GetSubnetResponse;
 import com.oracle.bmc.core.responses.GetVcnResponse;
 import com.oracle.bmc.core.responses.ListSubnetsResponse;
 import com.oracle.bmc.core.responses.ListVcnsResponse;
+import com.oracle.bmc.loadbalancer.LoadBalancer;
+import com.oracle.bmc.loadbalancer.requests.DeleteLoadBalancerRequest;
+import com.oracle.bmc.loadbalancer.requests.ListLoadBalancersRequest;
 
 import bglutil.jiu.common.UtilMain;
 
@@ -84,10 +88,34 @@ public class UtilNetwork extends UtilMain {
 	public List<IngressSecurityRule> getInternalWebserverIngressSecurityRules(String allowSourceCidr){
 		PortRange ssh = PortRange.builder().min(22).max(22).build();
 		TcpOptions sshInbound = TcpOptions.builder().destinationPortRange(ssh).build();
+		PortRange http = PortRange.builder().min(80).max(80).build();
+		TcpOptions httpInbound = TcpOptions.builder().destinationPortRange(http).build();
+		IngressSecurityRule isrWebserverHttp = IngressSecurityRule.builder().source(allowSourceCidr).protocol("6").tcpOptions(httpInbound).build();
 		IngressSecurityRule isrWebserverSsh = IngressSecurityRule.builder().source(allowSourceCidr).protocol("6").tcpOptions(sshInbound).build();
 		IngressSecurityRule isrWebserverIcmp = IngressSecurityRule.builder().source(allowSourceCidr).protocol("1").build();
 		List<IngressSecurityRule> ir = new ArrayList<IngressSecurityRule>();
-		ir.add(isrWebserverSsh); ir.add(isrWebserverIcmp);
+		ir.add(isrWebserverSsh); ir.add(isrWebserverIcmp); ir.add(isrWebserverHttp);
+		return ir;
+	}
+	
+	public List<IngressSecurityRule> getPublicLoadBalancerIngressSecurityRules(int[] lbPorts){
+		List<IngressSecurityRule> ir = new ArrayList<IngressSecurityRule>();
+		for(int i=0;i<lbPorts.length;i++){
+			ir.add(this.getPublicLoadBalancerIngressSecurityRule(lbPorts[i]));
+		}
+		return ir;
+	}
+	
+	public List<IngressSecurityRule> getLinuxBastionAndPublicLoadBalancerIngressSecurityRules(int[] lbPorts){
+		PortRange ssh = PortRange.builder().min(22).max(22).build();
+		TcpOptions sshInbound = TcpOptions.builder().destinationPortRange(ssh).build();
+		IngressSecurityRule isrBastionSsh = IngressSecurityRule.builder().source("0.0.0.0/0").protocol("6").tcpOptions(sshInbound).build();
+		IngressSecurityRule isrBastionIcmp = IngressSecurityRule.builder().source("0.0.0.0/0").protocol("1").build();
+		List<IngressSecurityRule> ir = new ArrayList<IngressSecurityRule>();
+		ir.add(isrBastionSsh); ir.add(isrBastionIcmp);
+		for(int i=0;i<lbPorts.length;i++){
+			ir.add(this.getPublicLoadBalancerIngressSecurityRule(lbPorts[i]));
+		}
 		return ir;
 	}
 	
@@ -99,6 +127,13 @@ public class UtilNetwork extends UtilMain {
 		List<IngressSecurityRule> ir = new ArrayList<IngressSecurityRule>();
 		ir.add(isrBastionSsh); ir.add(isrBastionIcmp);
 		return ir;
+	}
+	
+	public IngressSecurityRule getPublicLoadBalancerIngressSecurityRule(int port){
+		PortRange portRange = PortRange.builder().min(port).max(port).build();
+		TcpOptions portInbound = TcpOptions.builder().destinationPortRange(portRange).build();
+		IngressSecurityRule isrLbPort = IngressSecurityRule.builder().source("0.0.0.0/0").protocol("6").tcpOptions(portInbound).build();
+		return isrLbPort;
 	}
 	
 	public List<EgressSecurityRule> getEgressAllowAllRules(){
@@ -500,7 +535,7 @@ public class UtilNetwork extends UtilMain {
 	 * @param vcnNamePrefix
 	 * @throws Exception
 	 */
-	public void deleteVcnByNamePrefix(VirtualNetwork vn, Compute c, String compartmentId, String vcnNamePrefix) throws Exception {
+	public void deleteVcnByNamePrefix(LoadBalancer lb, VirtualNetwork vn, Compute c, String compartmentId, String vcnNamePrefix) throws Exception {
 		ListVcnsResponse res = vn.listVcns(ListVcnsRequest.builder().compartmentId(compartmentId).build());
 		UtilCompute uc = new UtilCompute();
 		for (Vcn v : res.getItems()) {
@@ -509,6 +544,18 @@ public class UtilNetwork extends UtilMain {
 				String defaultRouteTableId = v.getDefaultRouteTableId();
 				String defaultDhcpId = v.getDefaultDhcpOptionsId();
 				String defaultSecList = v.getDefaultSecurityListId();
+				// Remove Load Balancers
+				List<com.oracle.bmc.loadbalancer.model.LoadBalancer> lbs = lb.listLoadBalancers(ListLoadBalancersRequest.builder().compartmentId(compartmentId).build()).getItems();
+				for(com.oracle.bmc.loadbalancer.model.LoadBalancer l:lbs){
+					for(String snid:l.getSubnetIds()){
+						String vcnid = vn.getSubnet(GetSubnetRequest.builder().subnetId(snid).build()).getSubnet().getVcnId();
+						if(vcnid.equals(v.getId())){
+							String wrId = lb.deleteLoadBalancer(DeleteLoadBalancerRequest.builder().loadBalancerId(l.getId()).build()).getOpcWorkRequestId();
+							h.waitForWorkReqeustStatus(lb, wrId, "Deleting Load Balancer "+l.getDisplayName(), true);
+							break;
+						}
+					}
+				}
 				// Remove VM instances
 				List<Instance> instances = c.listInstances(ListInstancesRequest.builder().compartmentId(compartmentId).build()).getItems();
 				TreeMap<String,String> snToInstance = new TreeMap<String,String>(); 

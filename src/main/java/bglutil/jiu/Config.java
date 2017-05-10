@@ -19,6 +19,18 @@ import com.oracle.bmc.auth.SimplePrivateKeySupplier;
  */
 public class Config {
 	
+	public static String BASTION_USER_DATA = 	"#!/bin/bash\n"+
+											 	"yum -y update\n";
+	
+	public static String WEBSERVER_USER_DATA = 	"#!/bin/bash\n"+
+												"yum -y update\n"+
+												"yum -y install http\n"+
+												"echo Welcome to BMC! > /var/www/html/index.html\n"+
+												"chmod a+r /var/www/html/index.html\n"+
+												"service httpd start\n"+
+												"chkconfig httpd on\n";
+											 	
+	
 	public static String publicKeyToString(String profile){
 		StringBuffer sb = new StringBuffer();
 		String line = null;

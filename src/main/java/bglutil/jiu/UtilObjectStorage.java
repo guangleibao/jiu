@@ -12,7 +12,6 @@ import com.oracle.bmc.objectstorage.model.ObjectSummary;
 import com.oracle.bmc.objectstorage.requests.GetNamespaceRequest;
 import com.oracle.bmc.objectstorage.requests.GetObjectRequest;
 import com.oracle.bmc.objectstorage.requests.ListBucketsRequest;
-import com.oracle.bmc.objectstorage.responses.GetNamespaceResponse;
 import com.oracle.bmc.objectstorage.responses.GetObjectResponse;
 import com.oracle.bmc.objectstorage.responses.ListBucketsResponse;
 import com.oracle.bmc.objectstorage.responses.ListObjectsResponse;
@@ -39,6 +38,10 @@ public class UtilObjectStorage extends UtilMain{
 	
 	// GETTER //
 	
+	public String getNamespace(ObjectStorage os){
+		return os.getNamespace(GetNamespaceRequest.builder().build()).getValue();
+	}
+	
 	/**
 	 * Print out all buckets.
 	 * @param os
@@ -46,9 +49,7 @@ public class UtilObjectStorage extends UtilMain{
 	 * @throws Exception
 	 */
 	public void printAllBuckets(ObjectStorage os, String profile) throws Exception{
-		GetNamespaceResponse namespaceResponse =
-                os.getNamespace(GetNamespaceRequest.builder().build());
-        String namespaceName = namespaceResponse.getValue();
+        String namespaceName = this.getNamespace(os);
 
         Builder listBucketsBuilder =
                 ListBucketsRequest.builder()
@@ -118,7 +119,7 @@ public class UtilObjectStorage extends UtilMain{
         PutObjectRequest request =
                 PutObjectRequest.builder()
                         .bucketName(bucketName)
-                        .namespaceName(os.getNamespace(GetNamespaceRequest.builder().build()).getValue())
+                        .namespaceName(this.getNamespace(os))
                         .objectName(objectName)
                         .contentType(contentType)
                         .contentLanguage(contentLanguage)
@@ -146,7 +147,7 @@ public class UtilObjectStorage extends UtilMain{
 		GetObjectResponse getResponse =
                 os.getObject(
                         GetObjectRequest.builder()
-                                .namespaceName(os.getNamespace(GetNamespaceRequest.builder().build()).getValue())
+                                .namespaceName(this.getNamespace(os))
                                 .bucketName(bucketName)
                                 .objectName(objectName)
                                 .build());

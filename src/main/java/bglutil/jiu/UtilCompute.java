@@ -21,6 +21,7 @@ import com.oracle.bmc.core.requests.GetInstanceRequest;
 import com.oracle.bmc.core.requests.GetVnicRequest;
 import com.oracle.bmc.core.requests.LaunchInstanceRequest;
 import com.oracle.bmc.core.requests.ListImagesRequest;
+import com.oracle.bmc.core.requests.ListInstancesRequest;
 import com.oracle.bmc.core.requests.ListShapesRequest;
 import com.oracle.bmc.core.requests.ListVnicAttachmentsRequest;
 import com.oracle.bmc.core.requests.TerminateInstanceRequest;
@@ -37,6 +38,15 @@ public class UtilCompute extends UtilMain{
 	
 	// GETTER //
 	
+	public List<String> getPrivateIpByInstanceId(Compute c, VirtualNetwork vn, String instanceId, String compartmentId){
+		List<String> ips = new ArrayList<String>();
+		List<Vnic> atchs = this.getVnicByInstanceId(c, vn, instanceId, compartmentId);
+		for(Vnic v:atchs){
+			ips.add(v.getPrivateIp());
+		}
+		return ips;
+	}
+	
 	public List<Vnic> getVnicByInstanceId(Compute c, VirtualNetwork vn, String instanceId, String compartmentId){
 		List<VnicAttachment> atchs = c.listVnicAttachments(ListVnicAttachmentsRequest.builder().compartmentId(compartmentId).instanceId(instanceId).build()).getItems();
 		List<Vnic> vnics = new ArrayList<Vnic>();
@@ -46,6 +56,17 @@ public class UtilCompute extends UtilMain{
 			vnics.add(v);
 		}
 		return vnics;
+	}
+	
+	public String getInstanceIdByName(Compute c, String name, String compartmentId){
+		List<Instance> instances = c.listInstances(ListInstancesRequest.builder().compartmentId(compartmentId).build()).getItems();
+		String ocid = null;
+		for(Instance i:instances){
+			if(i.getDisplayName().equals(name) && !i.getLifecycleState().equals(Instance.LifecycleState.Terminated)){
+				ocid = i.getId();
+			}
+		}
+		return ocid;
 	}
 	
 	public String getInstanceNameById(Compute c, String instanceId){
@@ -78,9 +99,12 @@ public class UtilCompute extends UtilMain{
 	
 	// CREATOR //
 	
-	public GetInstanceResponse createVmInstance(Compute c, String compartmentId, String subnetId, String name, String imageId, String shapeId, String sshPublicKey, String ad, Instance.LifecycleState targetState) throws Exception{
+	public GetInstanceResponse createVmInstance(Compute c, String compartmentId, String subnetId, String name, String imageId, String shapeId, String sshPublicKey, String ad, String userdataBase64, Instance.LifecycleState targetState) throws Exception{
 		Map<String, String> metadata = new HashMap<String, String>();
         metadata.put("ssh_authorized_keys", sshPublicKey);
+        if(userdataBase64!=null){
+        	metadata.put("user_data", userdataBase64);
+        }
         
         LaunchInstanceResponse response =
                 c.launchInstance(

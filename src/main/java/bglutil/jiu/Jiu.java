@@ -34,16 +34,21 @@ import com.oracle.bmc.core.model.Vnic;
 import com.oracle.bmc.core.requests.GetDrgRequest;
 import com.oracle.bmc.core.requests.GetInternetGatewayRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
+import com.oracle.bmc.core.requests.GetSubnetRequest;
 import com.oracle.bmc.core.responses.GetInstanceResponse;
 import com.oracle.bmc.identity.Identity;
 import com.oracle.bmc.identity.model.ApiKey;
 import com.oracle.bmc.identity.model.AvailabilityDomain;
 import com.oracle.bmc.identity.model.User;
 import com.oracle.bmc.identity.requests.ListApiKeysRequest;
+import com.oracle.bmc.identity.requests.ListAvailabilityDomainsRequest;
 import com.oracle.bmc.identity.requests.ListUsersRequest;
 import com.oracle.bmc.identity.responses.ListUsersResponse;
 import com.oracle.bmc.loadbalancer.LoadBalancer;
+import com.oracle.bmc.loadbalancer.model.LoadBalancerPolicy;
 import com.oracle.bmc.loadbalancer.model.LoadBalancerShape;
+import com.oracle.bmc.loadbalancer.requests.GetLoadBalancerRequest;
+import com.oracle.bmc.loadbalancer.requests.ListLoadBalancersRequest;
 import com.oracle.bmc.objectstorage.ObjectStorage;
 import com.oracle.bmc.objectstorage.transfer.UploadManager.UploadResponse;
 import com.oracle.bmc.ClientConfiguration;
@@ -130,6 +135,43 @@ public class Jiu {
 	}
 	
 	// SHOW //
+	
+	public void showAd(String profile) throws IOException{
+		sk.printTitle(0, "Bare Metal AD in "+Config.getConfigFileReader(profile).get("region"));
+		Identity id = Client.getIamClient(profile);
+		List<AvailabilityDomain> ads = id.listAvailabilityDomains(ListAvailabilityDomainsRequest.builder().compartmentId(Config.getMyCompartmentId(profile)).build()).getItems();
+		for(AvailabilityDomain ad:ads){
+			sk.printResult(0, true, ad.getName());
+		}
+		sk.printTitle(0, "End");
+	}
+	
+	public void base64Encode(String plainText){
+		h.help(plainText, "<plain-text>");
+		System.out.println(h.base64Encode(plainText));
+	}
+	
+	public void base64Decode(String base64){
+		h.help(base64, "<base64>");
+		System.out.println(h.base64Decode(base64));
+	}
+	
+	public void base64EncodeFromFile(String path){
+		h.help(path, "<path>");
+		h.base64EncodeFromFile(path);
+	}
+	
+	public void showLbPolicy(String profile) throws NumberFormatException, IOException{
+		h.help(profile, "<profile>");
+		UtilLB ulb = new UtilLB();
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
+		List<LoadBalancerPolicy> policies = ulb.getAllLoadBalancerPolicy(lb, Config.getMyCompartmentId(profile));
+		sk.printTitle(0, "All Load Balancer Policies");
+		for(LoadBalancerPolicy p:policies){
+			sk.printResult(0, true, p.getName());
+		}
+		sk.printTitle(0, "End");
+	}
 	
 	public void showLbShape(String profile) throws NumberFormatException, IOException{
 		h.help(profile, "<profile>");
@@ -287,12 +329,27 @@ public class Jiu {
 				// Instance detail
 				Map<Vnic,Instance> instances = un.getInstanceBySubnet(vn, c, s, Instance.LifecycleState.Running);
 				for(Vnic nic:instances.keySet()){
-					sk.printResult(2, true, Helper.STAR+" Machine: "
-							+instances.get(nic).getDisplayName()+", "
+					String dn = instances.get(nic).getDisplayName();
+					sk.printResult(2, true, (dn.toLowerCase().contains("bastion")?Helper.FIST:Helper.STAR)+"  Machine: "
+							+dn+", "
 							+nic.getPrivateIp()+", "
 							+nic.getPublicIp()+", "
 							+instances.get(nic).getShape()+", "
 							+uc.getImageNameById(c,instances.get(nic).getImageId()));
+				}
+			}
+			LoadBalancer lb = Client.getLoadBalancerClient(profile);
+			List<com.oracle.bmc.loadbalancer.model.LoadBalancer> ls = lb.listLoadBalancers(ListLoadBalancersRequest.builder().compartmentId(compartmentId).build()).getItems();
+			for(com.oracle.bmc.loadbalancer.model.LoadBalancer l:ls){
+				for(String subnetId:l.getSubnetIds()){
+					Subnet s = vn.getSubnet(GetSubnetRequest.builder().subnetId(subnetId).build()).getSubnet();
+					if(s.getVcnId().equals(v.getId())){
+						sk.printResult(2,true, Helper.STAR+" "+Helper.STAR+" LoadBalancer: "+l.getDisplayName()+", "+l.getIpAddresses().get(0)+", "+l.getShapeName());
+						for(String lName:l.getListeners().keySet()){
+							sk.printResult(3,true, l.getListeners().get(lName));
+						}
+						break;
+					}
 				}
 			}
 		}
@@ -324,6 +381,11 @@ public class Jiu {
 			sk.printResult(0, true, "("+(++i)+") "+r.getRegionId());
 		}
 		sk.printTitle(0, "End");
+	}
+	
+	public void showAdCode(){
+		sk.printTitle(0, "Bare Metal ADs");
+		
 	}
 	
 	/**
@@ -403,6 +465,56 @@ public class Jiu {
 	
 	// CREATOR //
 	
+	//TODO 
+	
+	public void createVmInstance(String name, String vcnName, String subnetName, String imageId, String shapeName, String ad, String userdataFilePath, String profile) throws Exception{
+		Compute c = Client.getComputeClient(profile);
+		UtilCompute uc = new UtilCompute();
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilNetwork un = new UtilNetwork();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		String subnetId = un.getSubnetIdByName(vn, subnetName, un.getVcnIdByName(vn, vcnName, compartmentId), compartmentId);
+		uc.createVmInstance(c, compartmentId, subnetId, name, imageId, shapeName, Config.publicKeyToString(profile), ad, h.base64EncodeFromFile(userdataFilePath), Instance.LifecycleState.Running);
+	}
+	
+	public void addLbListener(String name, String protocol, String port, String lbName, String backendSetName, String profile) throws Exception{
+		h.help(name, "<listener-name> <protocol> <port> <load-balancer-name> <backend-set-name> <profile>");
+		sk.printTitle(0, "Add Listener "+name+" to Load Balancer "+lbName+" BackendSet "+backendSetName);
+		String compartmentId = Config.getMyCompartmentId(profile);
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
+		UtilLB ulb = new UtilLB();
+		String lbId = ulb.getLoadBalancerIdByName(lb, lbName, compartmentId);
+		ulb.addListenerForLoadBalancer(lb, lbName, protocol, Integer.valueOf(port), lbId, backendSetName);
+		sk.printTitle(0, "End");
+	}
+	
+	public void addLbBackend(String instanceName, String instancePort, String lbName, String backendSetName, String profile) throws Exception{
+		h.help(instanceName, "<backend-instance-name> <load-balancer-name> <backendset-name> <profile>");
+		sk.printTitle(0, "Add Instance "+instanceName+" to Load Balancer "+lbName+" BackendSet "+backendSetName);
+		String compartmentId = Config.getMyCompartmentId(profile);
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
+		UtilLB ulb = new UtilLB();
+		Compute c = Client.getComputeClient(profile);
+		UtilCompute uc = new UtilCompute();
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		String instanceId = uc.getInstanceIdByName(c, instanceName, compartmentId);
+		String backendIpAddress = uc.getPrivateIpByInstanceId(c, vn, instanceId, compartmentId).get(0);
+		String lbId = ulb.getLoadBalancerIdByName(lb, lbName, compartmentId);
+		ulb.addBackendToBackendSet(lb, backendSetName, lbId, backendIpAddress, Integer.valueOf(instancePort));
+		sk.printTitle(0, "End");
+	}
+	
+	public void addLbBackendSet(String name, String vcnName, String lbName, String lbPolicy, String hcProtocol, String hcPort, String hcUrlPath, String profile) throws Exception{
+		h.help(name, "<name> <vcn-name> <load-balancer-name> <policy: ROUND_ROBIN|LEAST_CONNECTIONS|IP_HASH> <health-check-protocol> <health-check-port> <health-check-url-path> <profile>");
+		sk.printTitle(0, "Create Load Balancer Backend Set - "+name);
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
+		UtilLB ulb = new UtilLB();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		ulb.addBackendSetForLoadBalancer(lb, name, ulb.getLoadBalancerIdByName(lb, lbName, compartmentId), 
+				lbPolicy, hcProtocol, Integer.valueOf(hcPort), hcUrlPath);
+		sk.printTitle(0, "End");
+	}
+	
 	public void createLb(String name, String vcnName, String subnet1Name, String subnet2Name, String shape, String profile) throws Exception{
 		h.help(name, "<name> <vcn-name> <subnet-1-name> <subnet-2-name> <shape: 100Mbps|400Mbps|8000Mbps> <profile>");
 		sk.printTitle(0, "Create Load Balancer - "+name);
@@ -449,6 +561,8 @@ public class Jiu {
 	 * 7. Six Subnets.
 	 * 8. One Oracle Linux 7.3 Bastion. Public
 	 * 9. Three Oracle Linux 7.3 Web Server. Private.
+	 * 10. One Load Balancer.
+	 * 11. Registering three Web Servers to Load Balancer.
 	 * @param profile
 	 * @throws Exception
 	 */
@@ -469,16 +583,24 @@ public class Jiu {
 		RouteRule rr = RouteRule.builder().cidrBlock("0.0.0.0/0").networkEntityId(igw.getId()).build();
 		List<RouteRule> rrs = new ArrayList<RouteRule>(); rrs.add(rr);
 		RouteTable publicRouteTable = un.createRouteTable(vn, compartmentId, vcn.getId(), prefix+"rt-public", rrs);
+		
+		List<EgressSecurityRule> erAllowAll = un.getEgressAllowAllRules();
 		// Bastion SecList
 		List<IngressSecurityRule> irBastion = un.getLinuxBastionIngressSecurityRules();
-		List<EgressSecurityRule> erAllowAll = un.getEgressAllowAllRules();
-		List<IngressSecurityRule> irWebserver = un.getInternalWebserverIngressSecurityRules(vcn.getCidrBlock());
-		SecurityList bastionSecList = un.createSecList(vn, compartmentId, vcn.getId(), prefix+"seclist-bastion", irBastion, erAllowAll);
+		SecurityList bastionSecList = un.createSecList(vn, compartmentId, vcn.getId(), prefix+"seclist-bastion-public", irBastion, erAllowAll);
 		List<String> bastionSecLists = new ArrayList<String>();
 		bastionSecLists.add(bastionSecList.getId());
-		SecurityList webserverSecList = un.createSecList(vn, compartmentId, vcn.getId(), prefix+"seclist-webserver", irWebserver, erAllowAll);
+		// Webserver SecList
+		List<IngressSecurityRule> irInternalWebserver = un.getInternalWebserverIngressSecurityRules(vcn.getCidrBlock());
+		SecurityList webserverSecList = un.createSecList(vn, compartmentId, vcn.getId(), prefix+"seclist-webserver-internal", irInternalWebserver, erAllowAll);
 		List<String> webserverSecLists = new ArrayList<String>();
 		webserverSecLists.add(webserverSecList.getId());
+		// Public LoadBalancer SecList
+		List<IngressSecurityRule> irPublicLoadBalancer = un.getPublicLoadBalancerIngressSecurityRules(new int[]{80,443});
+		SecurityList publicLoadBalancerSecList = un.createSecList(vn, compartmentId, vcn.getId(), prefix+"seclist-loadbalancer-public", irPublicLoadBalancer, erAllowAll);
+		List<String> publicLoadBalancerSecLists = new ArrayList<String>();
+		publicLoadBalancerSecLists.add(publicLoadBalancerSecList.getId());
+		
 		// 6 Subnets.
 		List<AvailabilityDomain> ads = ui.getAllAd(id, profile);
 		String snpub = prefix+"snpub";
@@ -487,7 +609,7 @@ public class Jiu {
 			pubSubnets[i] = un.createSubnet(vn, compartmentId, vcn.getId(), 
 				snpub+i, snpub+i, 
 				"10.7."+i+".0/24", ads.get(i).getName(), 
-				vcn.getDefaultDhcpOptionsId(), publicRouteTable.getId(), bastionSecLists, "Jiu - "+snpub+i);
+				vcn.getDefaultDhcpOptionsId(), publicRouteTable.getId(), i==0?bastionSecLists:publicLoadBalancerSecLists, "Jiu - "+snpub+i);
 		}
 		String snpri = prefix+"snpri";
 		Subnet[] priSubnets = new Subnet[3];
@@ -495,32 +617,63 @@ public class Jiu {
 			priSubnets[i] = un.createSubnet(vn, compartmentId, vcn.getId(), 
 				snpri+i, snpri+i, 
 				"10.7."+(i+3)+".0/24", ads.get(i).getName(), 
-				vcn.getDefaultDhcpOptionsId(), vcn.getDefaultRouteTableId(), webserverSecLists, "Jiu - "+snpub+i);
+				//vcn.getDefaultDhcpOptionsId(), vcn.getDefaultRouteTableId(), webserverSecLists, "Jiu - "+snpub+i); //TODO change to DefaultRouteTableId() when NAT is ready.
+				vcn.getDefaultDhcpOptionsId(), publicRouteTable.getId(), webserverSecLists, "Jiu - "+snpub+i);
 		}
 		// 1 Bastion.
 		Compute c = Client.getComputeClient(profile);
 		UtilCompute uc = new UtilCompute();
 		Image vmImage = null;
 		for(Image img:uc.getAllImage(c, compartmentId)){
-			if(img.getOperatingSystem().equals("Oracle Linux") && img.getOperatingSystemVersion().equals("7.3")){
+			if(img.getOperatingSystem().equals("Oracle Linux") && img.getOperatingSystemVersion().equals("7.3") && img.getDisplayName().contains("2017.04.18-0")){
 				vmImage = img;
 				break;
 			}
 		}
 		GetInstanceResponse bastionGis = uc.createVmInstance(c, compartmentId, pubSubnets[0].getId(), 
 				prefix+"bastion", vmImage.getId(), "VM.Standard1.1", 
-				Config.publicKeyToString(profile), ads.get(0).getName(), Instance.LifecycleState.Running);
-		String bastionId = bastionGis.getInstance().getId();
-		List<Vnic> vnics = uc.getVnicByInstanceId(c, vn, bastionId, compartmentId);
-		for(Vnic v:vnics){
-			sk.printResult(1, true, "@AD: "+v.getAvailabilityDomain()+", HostName: "+v.getHostnameLabel()+", "+v.getPrivateIp()+", "+v.getPublicIp());
-		}
+				Config.publicKeyToString(profile), ads.get(0).getName(), h.base64EncodeFromFile(Config.getConfigFileReader(profile).get("bastion_user_data")), Instance.LifecycleState.Provisioning);
 		// 3 Web Servers.
 		GetInstanceResponse[] webGis = new GetInstanceResponse[3];
 		for(int i=0;i<3;i++){
 			webGis[i]= uc.createVmInstance(c, compartmentId, priSubnets[i].getId(), 
 				prefix+"web"+i, vmImage.getId(), "VM.Standard1.1", 
-				Config.publicKeyToString(profile), ads.get(i).getName(), Instance.LifecycleState.Provisioning);
+				Config.publicKeyToString(profile), ads.get(i).getName(), h.base64EncodeFromFile(Config.getConfigFileReader(profile).get("webserver"+(i)+"_user_data")), Instance.LifecycleState.Provisioning);
+				//Config.publicKeyToString(profile), ads.get(i).getName(), null, Instance.LifecycleState.Provisioning);	
+		}
+		// 1 Load Balancer.
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
+		UtilLB ulb = new UtilLB();
+		String lbId = ulb.createLoadBalancer(lb, prefix+"lb", "100Mbps", pubSubnets[1].getId(), pubSubnets[2].getId(), compartmentId).getLoadBalancerId();
+		String lbLocationInfo = pubSubnets[1].getCidrBlock()+"@"+pubSubnets[1].getAvailabilityDomain()+", "+pubSubnets[2].getCidrBlock()+"@"+pubSubnets[2].getAvailabilityDomain();
+		String backendSetName = prefix+"lbbes";
+		ulb.addBackendSetForLoadBalancer(lb, backendSetName, lbId, "ROUND_ROBIN", "HTTP", 80, "/index.html");
+		ulb.addListenerForLoadBalancer(lb, prefix+"lbl", "HTTP", 80, lbId, backendSetName);
+		String[] instanceIds = new String[3];
+		int f=0;
+		for(GetInstanceResponse r:webGis){
+			instanceIds[f++]=r.getInstance().getId();
+		}
+		// Register 3 webservers to Load Balancer.
+		h.silentWaitForInstanceStatus(c, instanceIds, Instance.LifecycleState.Running, false);
+		for(String instanceId:instanceIds){
+			ulb.addBackendToBackendSet(lb, backendSetName, lbId, uc.getPrivateIpByInstanceId(c, vn, instanceId, compartmentId).get(0), 80);
+		}
+		// Output
+		String regionId = Region.fromRegionId(Config.getConfigFileReader(profile.toUpperCase()).get("region")).getRegionId();
+		com.oracle.bmc.loadbalancer.model.LoadBalancer l = lb.getLoadBalancer(GetLoadBalancerRequest.builder().loadBalancerId(lbId).build()).getLoadBalancer();
+		sk.printResult(1, true, "Load Balancer@Region: "+regionId+", "+l.getIpAddresses().get(0)+", "+l.getDisplayName()+", "+lbLocationInfo);
+		for(GetInstanceResponse g:webGis){
+			List<Vnic> wvnics = uc.getVnicByInstanceId(c, vn, g.getInstance().getId(), compartmentId);
+			for(Vnic v:wvnics){
+				sk.printResult(1, true, "Webserver@AD: "+v.getAvailabilityDomain()+", HostName: "+v.getHostnameLabel()+", "+v.getPrivateIp()+", "+v.getPublicIp());
+			}
+		}
+		String bastionId = bastionGis.getInstance().getId();
+		h.silentWaitForInstanceStatus(c, new String[]{bastionId}, Instance.LifecycleState.Running, false);
+		List<Vnic> vnics = uc.getVnicByInstanceId(c, vn, bastionId, compartmentId);
+		for(Vnic v:vnics){
+			sk.printResult(1, true, "Bastion@AD: "+v.getAvailabilityDomain()+", HostName: "+v.getHostnameLabel()+", "+v.getPrivateIp()+", "+v.getPublicIp());
 		}
 		sk.printTitle(0, "Infrastructure - "+prefix+" created.");
 	}
@@ -594,9 +747,10 @@ public class Jiu {
 		h.help(namePrefix, "<vcn-name-refix> <profile>");
 		sk.printTitle(0, "Delete VCN with Name Prefix "+namePrefix);
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
 		UtilNetwork un = new UtilNetwork();
 		Compute c = Client.getComputeClient(profile);
-		un.deleteVcnByNamePrefix(vn, c, Config.getMyCompartmentId(profile), namePrefix);
+		un.deleteVcnByNamePrefix(lb, vn, c, Config.getMyCompartmentId(profile), namePrefix);
 		sk.printTitle(0, "VCN with name prefix "+namePrefix+" DESTROYED.");
 	}
 	
@@ -722,9 +876,7 @@ public class Jiu {
 				return;
 			}
 		}
-
 		Helper.search(args[0]);
-
 		return;
 	}
 
