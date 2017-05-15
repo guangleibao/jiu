@@ -24,6 +24,7 @@ import com.oracle.bmc.core.model.EgressSecurityRule;
 import com.oracle.bmc.core.model.Image;
 import com.oracle.bmc.core.model.IngressSecurityRule;
 import com.oracle.bmc.core.model.Instance;
+import com.oracle.bmc.core.model.InstanceCredentials;
 import com.oracle.bmc.core.model.InternetGateway;
 import com.oracle.bmc.core.model.RouteRule;
 import com.oracle.bmc.core.model.RouteTable;
@@ -35,6 +36,7 @@ import com.oracle.bmc.core.requests.GetDrgRequest;
 import com.oracle.bmc.core.requests.GetInternetGatewayRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
 import com.oracle.bmc.core.requests.GetSubnetRequest;
+import com.oracle.bmc.core.requests.GetWindowsInstanceInitialCredentialsRequest;
 import com.oracle.bmc.core.responses.GetInstanceResponse;
 import com.oracle.bmc.identity.Identity;
 import com.oracle.bmc.identity.model.ApiKey;
@@ -320,6 +322,7 @@ public class Jiu {
 			for(Subnet s:subnets){
 				SubnetAsset sa = SubnetAsset.getInstance(vn, id, s.getId());
 				sk.printResult(1, true, "SUBNET: <"+sa.getSn().getDisplayName()+">, "+sa.getSn().getCidrBlock()+", "+sa.getSn().getSubnetDomainName()+", "+sa.getAd().getName());
+				sk.printResult(2, true, "OCID: "+sa.getSn().getId());
 				sk.printResult(2, true, "DHCP Options: <"+sa.getDhcp().getDisplayName()+">");
 				sk.printResult(2, true, "Route Table: <"+sa.getRt().getDisplayName()+">");
 				int sli=0;
@@ -344,9 +347,14 @@ public class Jiu {
 				for(String subnetId:l.getSubnetIds()){
 					Subnet s = vn.getSubnet(GetSubnetRequest.builder().subnetId(subnetId).build()).getSubnet();
 					if(s.getVcnId().equals(v.getId())){
-						sk.printResult(2,true, Helper.STAR+" "+Helper.STAR+" LoadBalancer: "+l.getDisplayName()+", "+l.getIpAddresses().get(0)+", "+l.getShapeName());
+						List<String> sids = l.getSubnetIds();
+						List<Subnet> sns = new ArrayList<Subnet>();
+						for(String sid:sids){
+							sns.add(vn.getSubnet(GetSubnetRequest.builder().subnetId(sid).build()).getSubnet());
+						}
+						sk.printResult(1,true, Helper.STAR+" "+Helper.STAR+" LoadBalancer: "+l.getDisplayName()+", "+l.getIpAddresses().get(0)+", "+l.getShapeName()+" @"+sns.get(0).getCidrBlock()+","+sns.get(1).getCidrBlock());
 						for(String lName:l.getListeners().keySet()){
-							sk.printResult(3,true, l.getListeners().get(lName));
+							sk.printResult(2,true, l.getListeners().get(lName));
 						}
 						break;
 					}
@@ -383,9 +391,16 @@ public class Jiu {
 		sk.printTitle(0, "End");
 	}
 	
-	public void showAdCode(){
+	public void showAdCode(String profile) throws IOException{
+		h.help(profile, "<profile-name>");
 		sk.printTitle(0, "Bare Metal ADs");
-		
+		Identity id = Client.getIamClient(profile);
+		UtilIam ui = new UtilIam();
+		List<AvailabilityDomain> ads = ui.getAllAd(id, profile);
+		for(AvailabilityDomain ad:ads){
+			sk.printResult(0, true, ad.getName());
+		}
+		sk.printTitle(0, "End");
 	}
 	
 	/**
@@ -465,16 +480,22 @@ public class Jiu {
 	
 	// CREATOR //
 	
-	//TODO 
-	
-	public void createVmInstance(String name, String vcnName, String subnetName, String imageId, String shapeName, String ad, String userdataFilePath, String profile) throws Exception{
+	public void createVmInstance(String name, String vcnName, String subnetName, String imageName, String shapeName, String userdataFilePath, String profile) throws Exception{
+		h.help(name, "<name> <vcn-name> <subnet-name> <image-name> <shape-name> <user-data-file-path> <profile>");
+		sk.printTitle(0, "Creating VM");
 		Compute c = Client.getComputeClient(profile);
 		UtilCompute uc = new UtilCompute();
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
 		UtilNetwork un = new UtilNetwork();
 		String compartmentId = Config.getMyCompartmentId(profile);
 		String subnetId = un.getSubnetIdByName(vn, subnetName, un.getVcnIdByName(vn, vcnName, compartmentId), compartmentId);
-		uc.createVmInstance(c, compartmentId, subnetId, name, imageId, shapeName, Config.publicKeyToString(profile), ad, h.base64EncodeFromFile(userdataFilePath), Instance.LifecycleState.Running);
+		String imageId = uc.getImageIdByName(c, imageName, compartmentId);
+		GetInstanceResponse gis = uc.createVmInstance(c, compartmentId, subnetId, name, imageId, shapeName, Config.publicKeyToString(profile), un.getAdBySubnetId(vn, subnetId), h.base64EncodeFromFile(userdataFilePath), Instance.LifecycleState.Running);
+		if(imageName.toLowerCase().contains("windows")){
+			InstanceCredentials ic = c.getWindowsInstanceInitialCredentials(GetWindowsInstanceInitialCredentialsRequest.builder().instanceId(gis.getInstance().getId()).build()).getInstanceCredentials();
+			sk.printResult(0, true, "Windows Login: "+ic.getUsername()+"/"+ic.getPassword());
+		}
+		sk.printTitle(0, "End");
 	}
 	
 	public void addLbListener(String name, String protocol, String port, String lbName, String backendSetName, String profile) throws Exception{
@@ -552,6 +573,11 @@ public class Jiu {
 	
 	/**
 	 * Create a new infrastructure for demo purpose.
+	 * 
+	 * [Bastion]-[LB0]--[LB1]
+	 *  |----------|------|  
+	 * [ ]-------[Web0]-[Web1]
+	 * 
 	 * 1. Compartment read from configuration file.
 	 * 2. One VCN.
 	 * 3. One IGW.
@@ -559,14 +585,20 @@ public class Jiu {
 	 * 5. One Bastion security list with rules.
 	 * 6. One Web Server security list with rules.
 	 * 7. Six Subnets.
-	 * 8. One Oracle Linux 7.3 Bastion. Public
-	 * 9. Three Oracle Linux 7.3 Web Server. Private.
+	 * 	a. snpub0 => bastion seclist.
+	 * 	b. snpub1 => public lb seclist.
+	 *  c. supub2 => public lb seclist.
+	 *  d. subpri0 => webserver seclist.
+	 *  e. subpri1 => webservert seclist.
+	 *  f. subpri2 => webservert seclist.
+	 * 8. One Oracle Linux 7.3 Bastion. Public 
+	 * 9. Two Oracle Linux 7.3 Web Server. Private.
 	 * 10. One Load Balancer.
 	 * 11. Registering three Web Servers to Load Balancer.
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void createDemoInfra(String namePrefix, String profile) throws Exception{
+	public void demoCreateSimpleWebInfra(String namePrefix, String profile) throws Exception{
 		h.help(namePrefix, "<resource-name-prefix> <profile-name>");
 		String prefix = namePrefix!=null?namePrefix:"bgltest";
 		sk.printTitle(0, "Create Infrastructure - "+prefix);
@@ -586,7 +618,7 @@ public class Jiu {
 		
 		List<EgressSecurityRule> erAllowAll = un.getEgressAllowAllRules();
 		// Bastion SecList
-		List<IngressSecurityRule> irBastion = un.getLinuxBastionIngressSecurityRules();
+		List<IngressSecurityRule> irBastion = un.getLinuxBastionIngressSecurityRules("10.7.0.0/16");
 		SecurityList bastionSecList = un.createSecList(vn, compartmentId, vcn.getId(), prefix+"seclist-bastion-public", irBastion, erAllowAll);
 		List<String> bastionSecLists = new ArrayList<String>();
 		bastionSecLists.add(bastionSecList.getId());
@@ -631,14 +663,14 @@ public class Jiu {
 			}
 		}
 		GetInstanceResponse bastionGis = uc.createVmInstance(c, compartmentId, pubSubnets[0].getId(), 
-				prefix+"bastion", vmImage.getId(), "VM.Standard1.1", 
+				prefix+"bastion", vmImage.getId(), "VM.Standard1.4", 
 				Config.publicKeyToString(profile), ads.get(0).getName(), h.base64EncodeFromFile(Config.getConfigFileReader(profile).get("bastion_user_data")), Instance.LifecycleState.Provisioning);
-		// 3 Web Servers.
-		GetInstanceResponse[] webGis = new GetInstanceResponse[3];
-		for(int i=0;i<3;i++){
-			webGis[i]= uc.createVmInstance(c, compartmentId, priSubnets[i].getId(), 
+		// 2 Web Servers.
+		GetInstanceResponse[] webGis = new GetInstanceResponse[2];
+		for(int i=0;i<2;i++){
+			webGis[i]= uc.createVmInstance(c, compartmentId, priSubnets[i+1].getId(), 
 				prefix+"web"+i, vmImage.getId(), "VM.Standard1.1", 
-				Config.publicKeyToString(profile), ads.get(i).getName(), h.base64EncodeFromFile(Config.getConfigFileReader(profile).get("webserver"+(i)+"_user_data")), Instance.LifecycleState.Provisioning);
+				Config.publicKeyToString(profile), ads.get(i+1).getName(), h.base64EncodeFromFile(Config.getConfigFileReader(profile).get("webserver"+(i)+"_user_data")), Instance.LifecycleState.Provisioning);
 				//Config.publicKeyToString(profile), ads.get(i).getName(), null, Instance.LifecycleState.Provisioning);	
 		}
 		// 1 Load Balancer.
@@ -649,21 +681,22 @@ public class Jiu {
 		String backendSetName = prefix+"lbbes";
 		ulb.addBackendSetForLoadBalancer(lb, backendSetName, lbId, "ROUND_ROBIN", "HTTP", 80, "/index.html");
 		ulb.addListenerForLoadBalancer(lb, prefix+"lbl", "HTTP", 80, lbId, backendSetName);
-		String[] instanceIds = new String[3];
-		int f=0;
-		for(GetInstanceResponse r:webGis){
-			instanceIds[f++]=r.getInstance().getId();
+		String[] instanceIds = new String[2];
+		for(int i=0;i<2;i++){
+			GetInstanceResponse r = webGis[i];
+			instanceIds[i]=r.getInstance().getId();
 		}
-		// Register 3 webservers to Load Balancer.
+		// Register 2 webservers to Load Balancer.
 		h.silentWaitForInstanceStatus(c, instanceIds, Instance.LifecycleState.Running, false);
-		for(String instanceId:instanceIds){
-			ulb.addBackendToBackendSet(lb, backendSetName, lbId, uc.getPrivateIpByInstanceId(c, vn, instanceId, compartmentId).get(0), 80);
+		for(int i=0;i<2;i++){
+			ulb.addBackendToBackendSet(lb, backendSetName, lbId, uc.getPrivateIpByInstanceId(c, vn, instanceIds[i], compartmentId).get(0), 80);
 		}
 		// Output
 		String regionId = Region.fromRegionId(Config.getConfigFileReader(profile.toUpperCase()).get("region")).getRegionId();
 		com.oracle.bmc.loadbalancer.model.LoadBalancer l = lb.getLoadBalancer(GetLoadBalancerRequest.builder().loadBalancerId(lbId).build()).getLoadBalancer();
 		sk.printResult(1, true, "Load Balancer@Region: "+regionId+", "+l.getIpAddresses().get(0)+", "+l.getDisplayName()+", "+lbLocationInfo);
-		for(GetInstanceResponse g:webGis){
+		for(int i=0;i<2;i++){
+			GetInstanceResponse g = webGis[i];
 			List<Vnic> wvnics = uc.getVnicByInstanceId(c, vn, g.getInstance().getId(), compartmentId);
 			for(Vnic v:wvnics){
 				sk.printResult(1, true, "Webserver@AD: "+v.getAvailabilityDomain()+", HostName: "+v.getHostnameLabel()+", "+v.getPrivateIp()+", "+v.getPublicIp());

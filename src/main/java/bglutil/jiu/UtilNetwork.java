@@ -87,14 +87,22 @@ public class UtilNetwork extends UtilMain {
 	
 	public List<IngressSecurityRule> getInternalWebserverIngressSecurityRules(String allowSourceCidr){
 		PortRange ssh = PortRange.builder().min(22).max(22).build();
-		TcpOptions sshInbound = TcpOptions.builder().destinationPortRange(ssh).build();
+		PortRange tsunami = PortRange.builder().min(46224).max(46224).build();
 		PortRange http = PortRange.builder().min(80).max(80).build();
+		
+		TcpOptions sshInbound = TcpOptions.builder().destinationPortRange(ssh).build();
+		TcpOptions tsunamiInbound = TcpOptions.builder().destinationPortRange(tsunami).build();
+		UdpOptions tsunamiInboundu = UdpOptions.builder().destinationPortRange(tsunami).build();
 		TcpOptions httpInbound = TcpOptions.builder().destinationPortRange(http).build();
+		
 		IngressSecurityRule isrWebserverHttp = IngressSecurityRule.builder().source(allowSourceCidr).protocol("6").tcpOptions(httpInbound).build();
 		IngressSecurityRule isrWebserverSsh = IngressSecurityRule.builder().source(allowSourceCidr).protocol("6").tcpOptions(sshInbound).build();
 		IngressSecurityRule isrWebserverIcmp = IngressSecurityRule.builder().source(allowSourceCidr).protocol("1").build();
+		IngressSecurityRule isrWebserverTsunnami = IngressSecurityRule.builder().source(allowSourceCidr).protocol("6").tcpOptions(tsunamiInbound).build();
+		IngressSecurityRule isrWebserverTsunnamiu = IngressSecurityRule.builder().source(allowSourceCidr).protocol("17").udpOptions(tsunamiInboundu).build();
+		
 		List<IngressSecurityRule> ir = new ArrayList<IngressSecurityRule>();
-		ir.add(isrWebserverSsh); ir.add(isrWebserverIcmp); ir.add(isrWebserverHttp);
+		ir.add(isrWebserverSsh); ir.add(isrWebserverIcmp); ir.add(isrWebserverHttp); ir.add(isrWebserverTsunnami); ir.add(isrWebserverTsunnamiu);
 		return ir;
 	}
 	
@@ -106,6 +114,7 @@ public class UtilNetwork extends UtilMain {
 		return ir;
 	}
 	
+	/*
 	public List<IngressSecurityRule> getLinuxBastionAndPublicLoadBalancerIngressSecurityRules(int[] lbPorts){
 		PortRange ssh = PortRange.builder().min(22).max(22).build();
 		TcpOptions sshInbound = TcpOptions.builder().destinationPortRange(ssh).build();
@@ -117,15 +126,20 @@ public class UtilNetwork extends UtilMain {
 			ir.add(this.getPublicLoadBalancerIngressSecurityRule(lbPorts[i]));
 		}
 		return ir;
-	}
+	}*/
 	
-	public List<IngressSecurityRule> getLinuxBastionIngressSecurityRules(){
+	public List<IngressSecurityRule> getLinuxBastionIngressSecurityRules(String allowSourceCidr){
 		PortRange ssh = PortRange.builder().min(22).max(22).build();
+		PortRange tsunami = PortRange.builder().min(46224).max(46224).build();
 		TcpOptions sshInbound = TcpOptions.builder().destinationPortRange(ssh).build();
+		TcpOptions tsunamiInbound = TcpOptions.builder().destinationPortRange(tsunami).build();
+		UdpOptions tsunamiInboundu = UdpOptions.builder().destinationPortRange(tsunami).build();
 		IngressSecurityRule isrBastionSsh = IngressSecurityRule.builder().source("0.0.0.0/0").protocol("6").tcpOptions(sshInbound).build();
 		IngressSecurityRule isrBastionIcmp = IngressSecurityRule.builder().source("0.0.0.0/0").protocol("1").build();
+		IngressSecurityRule isrBastionTsunnami = IngressSecurityRule.builder().source(allowSourceCidr).protocol("6").tcpOptions(tsunamiInbound).build();
+		IngressSecurityRule isrBastionTsunnamiu = IngressSecurityRule.builder().source(allowSourceCidr).protocol("17").udpOptions(tsunamiInboundu).build();
 		List<IngressSecurityRule> ir = new ArrayList<IngressSecurityRule>();
-		ir.add(isrBastionSsh); ir.add(isrBastionIcmp);
+		ir.add(isrBastionSsh); ir.add(isrBastionIcmp); ir.add(isrBastionTsunnami); ir.add(isrBastionTsunnamiu);
 		return ir;
 	}
 	
@@ -145,6 +159,9 @@ public class UtilNetwork extends UtilMain {
 	
 	// GETTER //
 	
+	public String getAdBySubnetId(VirtualNetwork vn, String subnetId){
+		return vn.getSubnet(GetSubnetRequest.builder().subnetId(subnetId).build()).getSubnet().getAvailabilityDomain();
+	}
 	
 	public Hashtable<Vnic,Instance> getInstanceBySubnet(VirtualNetwork vn, Compute c, Subnet subnet, Instance.LifecycleState state){
 		Hashtable<Vnic,Instance> vnicToInstance = new Hashtable<Vnic,Instance>();

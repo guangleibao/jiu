@@ -77,6 +77,18 @@ public class UtilCompute extends UtilMain{
 		return c.getImage(GetImageRequest.builder().imageId(imageId).build()).getImage().getDisplayName();
 	}
 	
+	public String getImageIdByName(Compute c, String imageName, String compartmentId){
+		List<Image> images = this.getAllImage(c, compartmentId);
+		String ret = null;
+		for(Image i:images){
+			if(i.getDisplayName().equals(imageName)){
+				ret = i.getId();
+				break;
+			}
+		}
+		return ret;
+	}
+	
 	public List<Image> getAllImage(Compute c, String compartmentId){
 		return c.listImages(ListImagesRequest.builder().compartmentId(compartmentId).build()).getItems();
 	}
