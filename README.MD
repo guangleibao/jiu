@@ -15,14 +15,15 @@ Sample config file **`~/.oraclebmc/config`** to run `Jiu`:
 		compartment=<compartment_ocid>
 		namespace=<object_storage_namespace>
 		bastionseclist=<bastion_seclist_ocid>
-		connectiontimeout=
-		readtimeout=
+		connectiontimeout=6000
+		readtimeout=240000
 		public_key_file=<public_key_file_location_for_vm>
-		bastion_user_data=
-		webserver_user_data=
-		webserver0_user_data=
-		webserver2_user_dataebserver1_user_data=
-		webserver2_user_data=
+		bastion_user_data=<file_location>
+		webserver_user_data=<file_location>
+		webserver0_user_data=<file_location>
+		webserver1_user_data=<file_location>
+		webserver2_user_data=<file_location_NOT_USED>
+
 
 
 + Edit `pom-sample.xml` to correct the `<bmc.jar.location>` property and rename it to `pom.xml` to build.
