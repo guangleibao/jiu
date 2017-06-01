@@ -7,8 +7,11 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.Base64;
-
+import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 import com.oracle.bmc.core.Compute;
 import com.oracle.bmc.core.ComputeWaiters;
@@ -48,18 +51,22 @@ import com.oracle.bmc.loadbalancer.responses.GetWorkRequestResponse;
 import bglutil.jiu.Jiu;
 
 /**
- * Helper center used by all other classes.
+ * Help center used by all other classes.
  * @author guanglei
  *
  */
 public class Helper {
 	
+	// The speaker.
 	private Speaker sk = new Speaker(Speaker.RenderType.CONSOLE);
 	
+	// Decorators.
 	public static char BUILDING = Character.toChars(9749)[0];
 	public static char REMOVING = Character.toChars(9762)[0];
 	public static char STAR = Character.toChars(9733)[0];
 	public static char FIST = Character.toChars(9994)[0];
+	public static char LE = Character.toChars(10999)[0];
+	public static char RE = Character.toChars(11000)[0];
 	
 	/* progressStop bean */
 	private boolean progressStop;
@@ -72,21 +79,22 @@ public class Helper {
 		this.progressStop = progressStop;
 	}
 	/* progressStop bean */
-
+	
+	// Spinner. 
 	private static String[] processingCharacters = new String[] { "\\", "|", "/", "-" };
 	
+	// Object name surrounder. 
+	public String objectName(String name){
+		return Helper.LE+" "+name+Helper.RE;
+	}
+	
 	public String base64Encode(String plain){
-		byte[] b = null;
+		byte[] b = plain.getBytes();
 		String base64 = null;
-		/*
-		try {
-			b=plain.getBytes("utf-8");
-		} catch (UnsupportedEncodingException e) {
-			e.printStackTrace();
-		}*/
-		b=plain.getBytes();
 		if(b!=null){
-			base64 = Base64.getUrlEncoder().encodeToString(b);
+			//base64 = Base64.getUrlEncoder().encodeToString(b);
+			//base64 = Base64.getMimeEncoder().encodeToString(b);
+			base64 = Base64.getEncoder().encodeToString(b);
 		}
 		return base64;
 	}
@@ -95,24 +103,26 @@ public class Helper {
 		byte[] b = null;
 		String plain = null;
 		if(base64 != null){
-			try {
-				b = Base64.getUrlDecoder().decode(base64);
-				plain = new String(b, "utf-8");
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+			//try {
+				//b = Base64.getUrlDecoder().decode(base64);
+				b = Base64.getDecoder().decode(base64);
+				plain = new String(b);
+			//} catch (IOException e) {
+			//	e.printStackTrace();
+			//}
 		}
 		return plain;
 	}
 	
 	public String base64EncodeFromFile(String file){
+		String ls = System.getProperty("line.separator");
 		StringBuffer sb = new StringBuffer();
 		String line = null;
 		try {
 			BufferedReader br = new BufferedReader(new FileReader(new File(file)));
 			line = br.readLine();
 			while(line!=null){
-				sb.append(line+"\n");
+				sb.append(line+ls);
 				line = br.readLine();
 			}
 			br.close();
@@ -128,6 +138,8 @@ public class Helper {
 			throw new RuntimeException("File Content is NULL!!");
 		}
 		String base64 = this.base64Encode(script);
+		sk.printTitle(0,"Ecoded:");
+		System.out.println(base64);
 		return base64;
 	}
 	
@@ -201,7 +213,7 @@ public class Helper {
 	
 	public GetWorkRequestResponse waitForWorkReqeustStatus(LoadBalancer lb, String workRequestId, String waitMessage, boolean tearDown) throws Exception{
 		char mark = tearDown?Helper.REMOVING:Helper.BUILDING;
-		LoadBalancerWaiters lbw = lb.getWaiters();
+		LoadBalancerWaiters lbw = lb.getWaiters();	
 		this.processingV2(waitMessage+" ... ");
 		GetWorkRequestResponse res = lbw.forWorkRequest(GetWorkRequestRequest.builder().workRequestId(workRequestId).build()).execute();
 		this.done(mark);
@@ -292,6 +304,18 @@ public class Helper {
 	
 	/* waitForXxxStatus */
 	
+	
+	
+	public Set<String> getPublicMethodName(Class clazz){
+		Method[] allMethods = clazz.getDeclaredMethods();
+		Set<String> methods = new TreeSet<String>();
+		for (Method m : allMethods) {
+			if (Modifier.isPublic(m.getModifiers()) && !m.getName().equals("test")) {
+				methods.add(m.getName());
+			}
+		}
+		return methods;
+	}
 	
 	/**
 	 * Output in-progress icon and return the thread for further termination.

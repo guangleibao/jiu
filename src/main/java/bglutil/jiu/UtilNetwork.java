@@ -84,7 +84,23 @@ public class UtilNetwork extends UtilMain {
 	}
 
 	// Facet //
+	public List<IngressSecurityRule> getInternalNoSqlIngressSecurityRules(String allowSourceCidr){
+		PortRange ssh = PortRange.builder().min(22).max(22).build();
+		PortRange nosql = PortRange.builder().min(5000).max(5030).build();
+		TcpOptions sshInbound = TcpOptions.builder().destinationPortRange(ssh).build();
+		TcpOptions nosqlInbound = TcpOptions.builder().destinationPortRange(nosql).build();
+		IngressSecurityRule isrNoSqlSsh = IngressSecurityRule.builder().source(allowSourceCidr).protocol("6").tcpOptions(sshInbound).build();
+		IngressSecurityRule isrNoSql = IngressSecurityRule.builder().source(allowSourceCidr).protocol("6").tcpOptions(nosqlInbound).build();
+		List<IngressSecurityRule> ir = new ArrayList<IngressSecurityRule>();
+		ir.add(isrNoSqlSsh); ir.add(isrNoSql);
+		return ir;
+	}
 	
+	/**
+	 * Get seclists typically be set on subnets for internal web servers.
+	 * @param allowSourceCidr
+	 * @return
+	 */
 	public List<IngressSecurityRule> getInternalWebserverIngressSecurityRules(String allowSourceCidr){
 		PortRange ssh = PortRange.builder().min(22).max(22).build();
 		PortRange tsunami = PortRange.builder().min(46224).max(46224).build();
@@ -106,6 +122,11 @@ public class UtilNetwork extends UtilMain {
 		return ir;
 	}
 	
+	/**
+	 * Get seclits typically be set on subnets for public load balancers.
+	 * @param lbPorts
+	 * @return
+	 */
 	public List<IngressSecurityRule> getPublicLoadBalancerIngressSecurityRules(int[] lbPorts){
 		List<IngressSecurityRule> ir = new ArrayList<IngressSecurityRule>();
 		for(int i=0;i<lbPorts.length;i++){
@@ -114,35 +135,37 @@ public class UtilNetwork extends UtilMain {
 		return ir;
 	}
 	
-	/*
-	public List<IngressSecurityRule> getLinuxBastionAndPublicLoadBalancerIngressSecurityRules(int[] lbPorts){
+	/**
+	 * Get bastion seclist.
+	 * @param allowSourceCidr
+	 * @return
+	 */
+	public List<IngressSecurityRule> getBastionIngressSecurityRules(String allowSourceCidr){
 		PortRange ssh = PortRange.builder().min(22).max(22).build();
-		TcpOptions sshInbound = TcpOptions.builder().destinationPortRange(ssh).build();
-		IngressSecurityRule isrBastionSsh = IngressSecurityRule.builder().source("0.0.0.0/0").protocol("6").tcpOptions(sshInbound).build();
-		IngressSecurityRule isrBastionIcmp = IngressSecurityRule.builder().source("0.0.0.0/0").protocol("1").build();
-		List<IngressSecurityRule> ir = new ArrayList<IngressSecurityRule>();
-		ir.add(isrBastionSsh); ir.add(isrBastionIcmp);
-		for(int i=0;i<lbPorts.length;i++){
-			ir.add(this.getPublicLoadBalancerIngressSecurityRule(lbPorts[i]));
-		}
-		return ir;
-	}*/
-	
-	public List<IngressSecurityRule> getLinuxBastionIngressSecurityRules(String allowSourceCidr){
-		PortRange ssh = PortRange.builder().min(22).max(22).build();
+		PortRange rdp = PortRange.builder().min(3389).max(3389).build();
+		PortRange rm = PortRange.builder().min(5985).max(5985).build();
 		PortRange tsunami = PortRange.builder().min(46224).max(46224).build();
 		TcpOptions sshInbound = TcpOptions.builder().destinationPortRange(ssh).build();
+		TcpOptions rdpInbound = TcpOptions.builder().destinationPortRange(rdp).build();
+		TcpOptions rmInbound = TcpOptions.builder().destinationPortRange(rm).build();
 		TcpOptions tsunamiInbound = TcpOptions.builder().destinationPortRange(tsunami).build();
 		UdpOptions tsunamiInboundu = UdpOptions.builder().destinationPortRange(tsunami).build();
 		IngressSecurityRule isrBastionSsh = IngressSecurityRule.builder().source("0.0.0.0/0").protocol("6").tcpOptions(sshInbound).build();
+		IngressSecurityRule isrBastionRdp = IngressSecurityRule.builder().source("0.0.0.0/0").protocol("6").tcpOptions(rdpInbound).build();
+		IngressSecurityRule isrBastionRm = IngressSecurityRule.builder().source("0.0.0.0/0").protocol("6").tcpOptions(rmInbound).build();
 		IngressSecurityRule isrBastionIcmp = IngressSecurityRule.builder().source("0.0.0.0/0").protocol("1").build();
 		IngressSecurityRule isrBastionTsunnami = IngressSecurityRule.builder().source(allowSourceCidr).protocol("6").tcpOptions(tsunamiInbound).build();
 		IngressSecurityRule isrBastionTsunnamiu = IngressSecurityRule.builder().source(allowSourceCidr).protocol("17").udpOptions(tsunamiInboundu).build();
 		List<IngressSecurityRule> ir = new ArrayList<IngressSecurityRule>();
-		ir.add(isrBastionSsh); ir.add(isrBastionIcmp); ir.add(isrBastionTsunnami); ir.add(isrBastionTsunnamiu);
+		ir.add(isrBastionSsh); ir.add(isrBastionRdp); ir.add(isrBastionRm); ir.add(isrBastionIcmp); ir.add(isrBastionTsunnami); ir.add(isrBastionTsunnamiu);
 		return ir;
 	}
 	
+	/**
+	 * Get single seclist rule for public load balancer.
+	 * @param port
+	 * @return
+	 */
 	public IngressSecurityRule getPublicLoadBalancerIngressSecurityRule(int port){
 		PortRange portRange = PortRange.builder().min(port).max(port).build();
 		TcpOptions portInbound = TcpOptions.builder().destinationPortRange(portRange).build();
@@ -150,6 +173,10 @@ public class UtilNetwork extends UtilMain {
 		return isrLbPort;
 	}
 	
+	/**
+	 * The mighty outbound rule.
+	 * @return
+	 */
 	public List<EgressSecurityRule> getEgressAllowAllRules(){
 		EgressSecurityRule esrBastionAll = EgressSecurityRule.builder().destination("0.0.0.0/0").protocol("all").build();
 		List<EgressSecurityRule> er = new ArrayList<EgressSecurityRule>();
@@ -159,10 +186,24 @@ public class UtilNetwork extends UtilMain {
 	
 	// GETTER //
 	
+	/**
+	 * Which AD is this subnet sitting on?
+	 * @param vn
+	 * @param subnetId
+	 * @return
+	 */
 	public String getAdBySubnetId(VirtualNetwork vn, String subnetId){
 		return vn.getSubnet(GetSubnetRequest.builder().subnetId(subnetId).build()).getSubnet().getAvailabilityDomain();
 	}
 	
+	/**
+	 * Which instances are in this subnet?
+	 * @param vn
+	 * @param c
+	 * @param subnet
+	 * @param state
+	 * @return
+	 */
 	public Hashtable<Vnic,Instance> getInstanceBySubnet(VirtualNetwork vn, Compute c, Subnet subnet, Instance.LifecycleState state){
 		Hashtable<Vnic,Instance> vnicToInstance = new Hashtable<Vnic,Instance>();
 		UtilCompute uc = new UtilCompute();
@@ -185,7 +226,8 @@ public class UtilNetwork extends UtilMain {
 	 * @param sl
 	 */
 	public void printSecListRules(SecurityList sl) {
-		sk.printResult(2, true, "<" + sl.getDisplayName() + ">");
+		sk.printResult(2, true, h.objectName(sl.getDisplayName()));
+		sk.printResult(3, true, "OCID: "+sl.getId());
 		sk.printResult(3, true, "Ingress:");
 		int rn = 0;
 		for (IngressSecurityRule isr : sl.getIngressSecurityRules()) {
@@ -417,11 +459,12 @@ public class UtilNetwork extends UtilMain {
 	 */
 	public Subnet createSubnet(VirtualNetwork vn, String compartmentId, String vcnId, String name, String dnsLabel,
 			String cidr, String availabilityDomain, String dhcpOptionsId, String routeTableId,
-			List<String> securityListIds, String description) throws Exception {
+			List<String> securityListIds, String description, boolean isPrivate) throws Exception {
 		CreateSubnetResponse csr = vn.createSubnet(CreateSubnetRequest.builder()
 				.createSubnetDetails(CreateSubnetDetails.builder().availabilityDomain(availabilityDomain)
 						.cidrBlock(cidr).compartmentId(compartmentId).dhcpOptionsId(dhcpOptionsId).displayName(name)
 						.dnsLabel(dnsLabel).routeTableId(routeTableId).vcnId(vcnId).securityListIds(securityListIds)
+						.prohibitPublicIpOnVnic(isPrivate)
 						.build())
 				.build());
 		String subnetId = csr.getSubnet().getId();
@@ -544,6 +587,8 @@ public class UtilNetwork extends UtilMain {
 		}
 	}
 
+
+	
 	/**
 	 * Delete all VCN with matching display name prefix and cascade delete all resource within it.
 	 * 
@@ -564,7 +609,8 @@ public class UtilNetwork extends UtilMain {
 				// Remove Load Balancers
 				List<com.oracle.bmc.loadbalancer.model.LoadBalancer> lbs = lb.listLoadBalancers(ListLoadBalancersRequest.builder().compartmentId(compartmentId).build()).getItems();
 				for(com.oracle.bmc.loadbalancer.model.LoadBalancer l:lbs){
-					for(String snid:l.getSubnetIds()){
+					for(String snid:l.getSubnetIds()){//TODO
+						//System.out.println("SNID: "+snid);
 						String vcnid = vn.getSubnet(GetSubnetRequest.builder().subnetId(snid).build()).getSubnet().getVcnId();
 						if(vcnid.equals(v.getId())){
 							String wrId = lb.deleteLoadBalancer(DeleteLoadBalancerRequest.builder().loadBalancerId(l.getId()).build()).getOpcWorkRequestId();

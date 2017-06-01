@@ -1,6 +1,8 @@
 package bglutil.jiu.common;
 
+import java.util.Hashtable;
 import java.util.List;
+import java.util.Map;
 
 import com.oracle.bmc.core.VirtualNetwork;
 import com.oracle.bmc.core.model.DhcpOptions;
@@ -48,12 +50,30 @@ public class VcnAsset {
 		va.defaultDhcpOptions = vn.getDhcpOptions(GetDhcpOptionsRequest.builder().dhcpId(va.vcn.getDefaultDhcpOptionsId()).build()).getDhcpOptions();
 		va.defaultRouteTable = vn.getRouteTable(GetRouteTableRequest.builder().rtId(va.vcn.getDefaultRouteTableId()).build()).getRouteTable();
 		va.defaultSecList = vn.getSecurityList(GetSecurityListRequest.builder().securityListId(va.vcn.getDefaultSecurityListId()).build()).getSecurityList();
-		va.subnets = vn.listSubnets(ListSubnetsRequest.builder().compartmentId(compartmentId).vcnId(vcnId).build()).getItems();
-		va.routeTables = vn.listRouteTables(ListRouteTablesRequest.builder().compartmentId(compartmentId).vcnId( vcnId).build()).getItems();
-		va.igws = vn.listInternetGateways(ListInternetGatewaysRequest.builder().compartmentId(compartmentId).vcnId( vcnId).build()).getItems();
-		va.drgAttachments = vn.listDrgAttachments(ListDrgAttachmentsRequest.builder().compartmentId(compartmentId).vcnId( vcnId).build()).getItems();
-		va.secLists = vn.listSecurityLists(ListSecurityListsRequest.builder().compartmentId(compartmentId).vcnId(vcnId).build()).getItems();	
-		va.dhcpOptions = vn.listDhcpOptions(ListDhcpOptionsRequest.builder().compartmentId(compartmentId).vcnId( vcnId).build()).getItems();
+		va.subnets = new Hashtable<String,Subnet>();
+				for(Subnet sn:vn.listSubnets(ListSubnetsRequest.builder().compartmentId(compartmentId).vcnId(vcnId).build()).getItems()){
+					va.subnets.put(sn.getId(), sn);
+				}
+		va.routeTables = new Hashtable<String,RouteTable>();
+				for(RouteTable rt:vn.listRouteTables(ListRouteTablesRequest.builder().compartmentId(compartmentId).vcnId( vcnId).build()).getItems()){
+					va.routeTables.put(rt.getId(), rt);
+				}
+		va.igws = new Hashtable<String, InternetGateway>();
+				for(InternetGateway igw:vn.listInternetGateways(ListInternetGatewaysRequest.builder().compartmentId(compartmentId).vcnId( vcnId).build()).getItems()){
+					va.igws.put(igw.getId(), igw);
+				}
+		va.drgAttachments = new Hashtable<String, DrgAttachment>();
+				for(DrgAttachment drga:vn.listDrgAttachments(ListDrgAttachmentsRequest.builder().compartmentId(compartmentId).vcnId( vcnId).build()).getItems()){
+					va.drgAttachments.put(drga.getId(), drga);
+				}
+		va.secLists = new Hashtable<String, SecurityList>();
+				for(SecurityList sl:vn.listSecurityLists(ListSecurityListsRequest.builder().compartmentId(compartmentId).vcnId(vcnId).build()).getItems()){
+					va.secLists.put(sl.getId(),sl);
+				}
+		va.dhcpOptions = new Hashtable<String, DhcpOptions>();
+				for(DhcpOptions dhcpo:vn.listDhcpOptions(ListDhcpOptionsRequest.builder().compartmentId(compartmentId).vcnId( vcnId).build()).getItems()){
+					va.dhcpOptions.put(dhcpo.getId(), dhcpo);
+				}
 		return va;
 	}
 	
@@ -63,15 +83,15 @@ public class VcnAsset {
 	private String cidr;
 	private String ocid;
 	private String name;
-	private List<Subnet> subnets;
+	private Map<String,Subnet> subnets;
 	private RouteTable defaultRouteTable;
-	private List<RouteTable> routeTables;
-	private List<InternetGateway> igws;
-	private List<DrgAttachment> drgAttachments;
+	private Map<String,RouteTable> routeTables;
+	private Map<String,InternetGateway> igws;
+	private Map<String,DrgAttachment> drgAttachments;
 	private SecurityList defaultSecList;
-	private List<SecurityList> secLists;
+	private Map<String,SecurityList> secLists;
 	private DhcpOptions defaultDhcpOptions;
-	private List<DhcpOptions> dhcpOptions;
+	private Map<String,DhcpOptions> dhcpOptions;
 	
 	public Vcn getVcn() {
 		return vcn;
@@ -93,7 +113,7 @@ public class VcnAsset {
 		return name;
 	}
 
-	public List<Subnet> getSubnets() {
+	public Map<String,Subnet> getSubnets() {
 		return subnets;
 	}
 
@@ -101,7 +121,7 @@ public class VcnAsset {
 		return defaultRouteTable;
 	}
 
-	public List<DrgAttachment> getDrgAttachments() {
+	public Map<String,DrgAttachment> getDrgAttachments() {
 		return drgAttachments;
 	}
 
@@ -116,16 +136,16 @@ public class VcnAsset {
 	public String getDnsLabel() {
 		return dnsLabel;
 	}
-	public List<RouteTable> getRouteTables() {
+	public Map<String,RouteTable> getRouteTables() {
 		return routeTables;
 	}
-	public List<InternetGateway> getIgws() {
+	public Map<String,InternetGateway> getIgws() {
 		return igws;
 	}
-	public List<SecurityList> getSecLists() {
+	public Map<String,SecurityList> getSecLists() {
 		return secLists;
 	}
-	public List<DhcpOptions> getDhcpOptions() {
+	public Map<String,DhcpOptions> getDhcpOptions() {
 		return dhcpOptions;
 	}
 	

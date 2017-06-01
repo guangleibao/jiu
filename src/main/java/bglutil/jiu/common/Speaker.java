@@ -1,6 +1,13 @@
 package bglutil.jiu.common;
 
 import java.io.Serializable;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import bglutil.jiu.Jiu;
 
 
 /**
@@ -210,6 +217,12 @@ public class Speaker implements Serializable {
 
 	public <E> void printResult(int indentCount, boolean withNewLine, E e) {
 		System.out.print(this.makeResult(indentCount, withNewLine, e));
+	}
+	
+	public <T,U> void printMap(int indent, Map<T,U> map){
+		for(T t:map.keySet()){
+			this.printResult(indent,true,t.toString()+": "+map.get(t).toString());
+		}
 	}
 
 	public String getNewLine() {

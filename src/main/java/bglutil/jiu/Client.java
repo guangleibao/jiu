@@ -23,6 +23,13 @@ import com.oracle.bmc.objectstorage.ObjectStorageClient;
  */
 public class Client {
 	
+	/**
+	 * Load balancer client.
+	 * @param profile
+	 * @return
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
 	public static LoadBalancer getLoadBalancerClient(String profile) throws NumberFormatException, IOException{
 		LoadBalancer lb = new LoadBalancerClient(Config.getAuthProvider(profile.toUpperCase()), Config.getClientConfig(profile));
 		lb.setRegion(Region.fromRegionId(Config.getConfigFileReader(profile.toUpperCase()).get("region")));

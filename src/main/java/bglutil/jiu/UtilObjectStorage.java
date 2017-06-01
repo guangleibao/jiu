@@ -38,6 +38,11 @@ public class UtilObjectStorage extends UtilMain{
 	
 	// GETTER //
 	
+	/**
+	 * Get the namespace for object storage.
+	 * @param os
+	 * @return
+	 */
 	public String getNamespace(ObjectStorage os){
 		return os.getNamespace(GetNamespaceRequest.builder().build()).getValue();
 	}

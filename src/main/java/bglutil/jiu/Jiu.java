@@ -6,17 +6,24 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.SimpleTimeZone;
 import java.util.TimeZone;
+import java.util.TreeMap;
 import java.util.TreeSet;
 
 import com.oracle.bmc.audit.Audit;
+import com.oracle.bmc.audit.AuditClient;
+import com.oracle.bmc.core.BlockstorageClient;
 import com.oracle.bmc.core.Compute;
+import com.oracle.bmc.core.ComputeClient;
 import com.oracle.bmc.core.VirtualNetwork;
+import com.oracle.bmc.core.VirtualNetworkClient;
 import com.oracle.bmc.core.model.DhcpOption;
 import com.oracle.bmc.core.model.DhcpOptions;
 import com.oracle.bmc.core.model.Drg;
@@ -32,13 +39,19 @@ import com.oracle.bmc.core.model.SecurityList;
 import com.oracle.bmc.core.model.Subnet;
 import com.oracle.bmc.core.model.Vcn;
 import com.oracle.bmc.core.model.Vnic;
+import com.oracle.bmc.core.model.VnicAttachment;
 import com.oracle.bmc.core.requests.GetDrgRequest;
 import com.oracle.bmc.core.requests.GetInternetGatewayRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
 import com.oracle.bmc.core.requests.GetSubnetRequest;
 import com.oracle.bmc.core.requests.GetWindowsInstanceInitialCredentialsRequest;
+import com.oracle.bmc.core.requests.InstanceActionRequest;
+import com.oracle.bmc.core.requests.ListInstancesRequest;
+import com.oracle.bmc.core.requests.ListSubnetsRequest;
+import com.oracle.bmc.core.requests.ListVnicAttachmentsRequest;
 import com.oracle.bmc.core.responses.GetInstanceResponse;
 import com.oracle.bmc.identity.Identity;
+import com.oracle.bmc.identity.IdentityClient;
 import com.oracle.bmc.identity.model.ApiKey;
 import com.oracle.bmc.identity.model.AvailabilityDomain;
 import com.oracle.bmc.identity.model.User;
@@ -47,11 +60,14 @@ import com.oracle.bmc.identity.requests.ListAvailabilityDomainsRequest;
 import com.oracle.bmc.identity.requests.ListUsersRequest;
 import com.oracle.bmc.identity.responses.ListUsersResponse;
 import com.oracle.bmc.loadbalancer.LoadBalancer;
+import com.oracle.bmc.loadbalancer.LoadBalancerClient;
+import com.oracle.bmc.loadbalancer.model.Backend;
 import com.oracle.bmc.loadbalancer.model.LoadBalancerPolicy;
 import com.oracle.bmc.loadbalancer.model.LoadBalancerShape;
 import com.oracle.bmc.loadbalancer.requests.GetLoadBalancerRequest;
 import com.oracle.bmc.loadbalancer.requests.ListLoadBalancersRequest;
 import com.oracle.bmc.objectstorage.ObjectStorage;
+import com.oracle.bmc.objectstorage.ObjectStorageClient;
 import com.oracle.bmc.objectstorage.transfer.UploadManager.UploadResponse;
 import com.oracle.bmc.ClientConfiguration;
 import com.oracle.bmc.Region;
@@ -67,15 +83,17 @@ import bglutil.jiu.common.VcnAsset;
  * Oracle Bare Metal Cloud demos for fun.
  */
 public class Jiu {
-
+	// Those methods will not be exposed by main routine.
 	public static final ArrayList<String> SKIPPED_METHODS = new ArrayList<String>();
-
+	
+	// Static settings, certain.
 	static {
 		java.security.Security.setProperty("networkaddress.cache.ttl", "60");
 		SKIPPED_METHODS.add("coreV2");
 		SKIPPED_METHODS.add("main");
 	}
-
+	
+	// Helper utilities.
 	private static Speaker sk = Speaker.CONSOLE;
 	private Helper h = new Helper();
 	
@@ -94,6 +112,7 @@ public class Jiu {
 		UtilObjectStorage uos = new UtilObjectStorage();
 		sk.printTitle(0, "All Objects in "+bucketName);
 		uos.printAllObjectsInBucket(os, bucketName, profile);
+		sk.printTitle(0, "End");
 	}
 	
 	/**
@@ -138,6 +157,159 @@ public class Jiu {
 	
 	// SHOW //
 	
+	private void showAction(Class clazz){
+		List<String> skip = new ArrayList<String>();
+		skip.add("close");skip.add("setEndpoint");skip.add("setRegion");skip.add("getWaiters");
+		Set<String> methods = h.getPublicMethodName(clazz);
+		int i=0;
+		for(String m:methods){
+			System.out.println(skip.contains(m)?Helper.STAR+" "+m:(++i)+": "+m);
+		}
+	}
+	
+	/**
+	 * List all actions available for compute service.
+	 */
+	public void showActionCompute(){
+		this.showAction(ComputeClient.class);
+	}
+	
+	/**
+	 * List all actions available for block storage service.
+	 */
+	public void showActionBlockstorage(){
+		this.showAction(BlockstorageClient.class);
+	}
+	
+	/**
+	 * List all actions available for network service.
+	 */
+	public void showActionNetwork(){
+		this.showAction(VirtualNetworkClient.class);
+	}
+	
+	/**
+	 * List all actions available for IAM service.
+	 */
+	public void showActionIam(){
+		this.showAction(IdentityClient.class);
+	}
+	
+	/**
+	 * List all actions available for audit service.
+	 */
+	public void showActionAudit(){
+		this.showAction(AuditClient.class);
+	}
+	
+	/**
+	 * List all actions available for object storage service.
+	 */
+	public void showActionObjectStorage(){
+		this.showAction(ObjectStorageClient.class);
+	}
+	
+	/**
+	 * List all actions available for load balancing service.
+	 */
+	public void showActionLoadbalancer(){
+		this.showAction(LoadBalancerClient.class);
+	}
+	
+	/**
+	 * Print out instanceId by name.
+	 * @param name
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
+	public void printInstanceIdByName(String name, String profile) throws NumberFormatException, IOException{
+		h.help(name, "<instance-name> <profile>");
+		Compute c = Client.getComputeClient(profile);
+		UtilCompute uc = new UtilCompute();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		System.out.println(uc.getInstanceIdByName(c, name, compartmentId));
+	}
+	
+	/**
+	 * Print out instance private or public IP address by name.
+	 * @param name
+	 * @param privateOrPublic
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
+	public void printInstanceIpByName(String name, String privateOrPublic, String profile) throws NumberFormatException, IOException{
+		h.help(name, "<instance-name> <type: private|public> <profile>");
+		Compute c = Client.getComputeClient(profile);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilCompute uc = new UtilCompute();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		System.out.println(uc.getInstanceIpByName(c, vn, name, privateOrPublic, compartmentId));
+	}
+	
+	/**
+	 * Show namespace for object storage.
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
+	public void showNamespace(String profile) throws NumberFormatException, IOException{
+		h.help(profile, "<profile>");
+		ObjectStorage os = Client.getObjectStorageClient(profile);
+		UtilObjectStorage uos = new UtilObjectStorage();
+		sk.printTitle(0, "Namespace: "+uos.getNamespace(os));
+	}
+	
+	/**
+	 * Show all load balancers in a VCN.
+	 * @param vcnName
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
+	public void showLbInVcn(String vcnName, String profile) throws NumberFormatException, IOException{
+		h.help(vcnName, "<vcn-name> <profile>");
+		sk.printTitle(0, "Show all load balancers in VCN "+vcnName);
+		UtilLB ulb = new UtilLB();
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilNetwork un = new UtilNetwork();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		String vcnId = un.getVcnIdByName(vn, vcnName, compartmentId);
+		List<com.oracle.bmc.loadbalancer.model.LoadBalancer> ls = lb.listLoadBalancers(ListLoadBalancersRequest.builder().compartmentId(compartmentId).build()).getItems();
+		for(com.oracle.bmc.loadbalancer.model.LoadBalancer l:ls){
+			for(String subnetId:l.getSubnetIds()){
+				Subnet s = vn.getSubnet(GetSubnetRequest.builder().subnetId(subnetId).build()).getSubnet();
+				if(s.getVcnId().equals(vcnId)){
+					List<String> sids = l.getSubnetIds();
+					List<Subnet> sns = new ArrayList<Subnet>();
+					for(String sid:sids){
+						sns.add(vn.getSubnet(GetSubnetRequest.builder().subnetId(sid).build()).getSubnet());
+					}
+					sk.printResult(1,true, Helper.STAR+" "+Helper.STAR+" LoadBalancer: "+l.getDisplayName()+", "+l.getIpAddresses().get(0)+", "+l.getShapeName()+" @"+sns.get(0).getCidrBlock()+","+sns.get(1).getCidrBlock());
+					for(String lName:l.getListeners().keySet()){
+						sk.printResult(2,true, l.getListeners().get(lName));
+					}
+					for(String backendSetName:l.getBackendSets().keySet()){
+						sk.printResult(2, true, "BackendSet: "+l.getBackendSets().get(backendSetName).getName()+", "+l.getBackendSets().get(backendSetName).getPolicy());
+						List<Backend> ends = l.getBackendSets().get(backendSetName).getBackends();
+						for(Backend be:ends){
+							sk.printResult(3, true, "Backend: "+be.getName()+", "+be.getIpAddress()+", "+be.getPort()+", "+be.getWeight()+", "+(be.getOffline()?"offline":"online"+", "+(be.getBackup()?"backup":"primary")+", "+(be.getDrain()?"drain":"active")));
+						}
+					}
+					break;
+				}
+			}
+		}
+		sk.printTitle(0, "End");
+	}
+	
+	/**
+	 * Show AD.
+	 * @param profile
+	 * @throws IOException
+	 */
 	public void showAd(String profile) throws IOException{
 		sk.printTitle(0, "Bare Metal AD in "+Config.getConfigFileReader(profile).get("region"));
 		Identity id = Client.getIamClient(profile);
@@ -148,21 +320,39 @@ public class Jiu {
 		sk.printTitle(0, "End");
 	}
 	
+	/**
+	 * Encode plain text base64.
+	 * @param plainText
+	 */
 	public void base64Encode(String plainText){
 		h.help(plainText, "<plain-text>");
 		System.out.println(h.base64Encode(plainText));
 	}
 	
+	/**
+	 * Decode plain text from base64.
+	 * @param base64
+	 */
 	public void base64Decode(String base64){
 		h.help(base64, "<base64>");
 		System.out.println(h.base64Decode(base64));
 	}
 	
+	/**
+	 * Encode file content to base64.
+	 * @param path
+	 */
 	public void base64EncodeFromFile(String path){
 		h.help(path, "<path>");
 		h.base64EncodeFromFile(path);
 	}
 	
+	/**
+	 * Show available load balancer policies.
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
 	public void showLbPolicy(String profile) throws NumberFormatException, IOException{
 		h.help(profile, "<profile>");
 		UtilLB ulb = new UtilLB();
@@ -175,6 +365,12 @@ public class Jiu {
 		sk.printTitle(0, "End");
 	}
 	
+	/**
+	 * Show available load balancer shapes.
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
 	public void showLbShape(String profile) throws NumberFormatException, IOException{
 		h.help(profile, "<profile>");
 		UtilLB ulb = new UtilLB();
@@ -187,6 +383,12 @@ public class Jiu {
 		sk.printTitle(0, "End");
 	}
 	
+	/**
+	 * Show available VM images.
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
 	public void showImage(String profile) throws NumberFormatException, IOException{
 		h.help(profile, "<profile>");
 		Compute c = Client.getComputeClient(profile);
@@ -199,6 +401,12 @@ public class Jiu {
 		sk.printTitle(0, "End");
 	}
 	
+	/**
+	 * Show available shapes.
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
 	public void showShape(String profile) throws NumberFormatException, IOException{
 		h.help(profile, "<profile>");
 		Compute c = Client.getComputeClient(profile);
@@ -210,6 +418,11 @@ public class Jiu {
 		sk.printTitle(0, "End");
 	}
 	
+	/**
+	 * Show all buckets.
+	 * @param profile
+	 * @throws Exception
+	 */
 	public void showBucket(String profile) throws Exception{
 		h.help(profile, "<profile>");
 		ObjectStorage os = Client.getObjectStorageClient(profile);
@@ -220,7 +433,7 @@ public class Jiu {
 	}
 	
 	/**
-	 * Show rules for sec list.
+	 * Show rules for seclist.
 	 * @param secListOcid
 	 * @param profile
 	 * @throws Exception
@@ -234,6 +447,8 @@ public class Jiu {
 		un.printSecListRules(sl);
 		sk.printTitle(0, "End");
 	}
+	
+	
 	
 	/**
 	 * Show all IAM users.
@@ -283,51 +498,54 @@ public class Jiu {
 				continue;
 			}
 			VcnAsset va = VcnAsset.getInstance(vn, id, v.getId(), compartmentId);
-			sk.printResult(0, true, "VCN: <"+va.getName()+">, "+va.getCidr()+", "+va.getDomainName()+", "+va.getVcn().getLifecycleState().getValue()+", "+va.getVcn().getTimeCreated().toString());
+			sk.printResult(0, true, "VCN: "+h.objectName(va.getName())+", "+va.getCidr()+", "+va.getDomainName()+", "+va.getVcn().getLifecycleState().getValue()+", "+va.getVcn().getTimeCreated().toString());
 			sk.printResult(1, true, "OCID: "+va.getOcid());
 			sk.printResult(1, true, "ALL INTERNET GATEWAY:");
-			for(InternetGateway igw:va.getIgws()){
-				sk.printResult(2, true, "<"+igw.getDisplayName()+">, enabled-"+igw.getIsEnabled());
+			for(InternetGateway igw:va.getIgws().values()){
+				sk.printResult(2, true, h.objectName(igw.getDisplayName())+", enabled-"+igw.getIsEnabled());
+				sk.printResult(3, true, "OCID: "+igw.getId());
 			}
-			sk.printResult(1, true, "DEFAULT ROUTE TABLE: <"+va.getDefaultRouteTable().getDisplayName()+">");
+			sk.printResult(1, true, "DEFAULT ROUTE TABLE: "+h.objectName(va.getDefaultRouteTable().getDisplayName()));
 			sk.printResult(1, true, "ALL ROUTE TABLE:");
-			for(RouteTable rt:va.getRouteTables()){
-				sk.printResult(2, true, "<"+rt.getDisplayName()+">");
+			for(RouteTable rt:va.getRouteTables().values()){
+				sk.printResult(2, true, h.objectName(rt.getDisplayName()));
+				sk.printResult(3, true, "OCID: "+rt.getId());
 				for(RouteRule rr:rt.getRouteRules()){
 					String nOcid = rr.getNetworkEntityId();
 					if(nOcid.contains("internetgateway")){
 						InternetGateway igw = vn.getInternetGateway(GetInternetGatewayRequest.builder().igId(nOcid).build()).getInternetGateway();
-						sk.printResult(3, true, rr.getCidrBlock()+" => <"+igw.getDisplayName()+">");
+						sk.printResult(3, true, rr.getCidrBlock()+" => "+h.objectName(igw.getDisplayName()));
 					}
 					else if(nOcid.contains("dynamic")){ //TODO To be confirmed.
 						Drg drg = vn.getDrg(GetDrgRequest.builder().drgId(nOcid).build()).getDrg();
-						sk.printResult(3, true, rr.getCidrBlock()+" => <"+drg.getDisplayName()+">");
+						sk.printResult(3, true, rr.getCidrBlock()+" => "+h.objectName(drg.getDisplayName()));
 					}
 				}
 			}
-			sk.printResult(1, true, "DEFAULT DHCP OPTIONS: <"+va.getDefaultDhcpOptions().getDisplayName()+">");
+			sk.printResult(1, true, "DEFAULT DHCP OPTIONS: "+h.objectName(va.getDefaultDhcpOptions().getDisplayName()));
 			sk.printResult(1, true, "ALL DHCP OPTIONS:");
-			for(DhcpOptions dhcpo:va.getDhcpOptions()){
-				sk.printResult(2, true, "<"+dhcpo.getDisplayName()+">");
+			for(DhcpOptions dhcpo:va.getDhcpOptions().values()){
+				sk.printResult(2, true, h.objectName(dhcpo.getDisplayName()));
+				sk.printResult(3, true, "OCID: "+dhcpo.getId());
 				for(DhcpOption dhcp:dhcpo.getOptions()){
 					sk.printResult(3, true, dhcp.toString());
 				}
 			}
-			sk.printResult(1, true, "DEFAULT SECURITY LIST: <"+va.getDefaultSecList().getDisplayName()+">");	
+			sk.printResult(1, true, "DEFAULT SECURITY LIST: "+h.objectName(va.getDefaultSecList().getDisplayName()));	
 			sk.printResult(1, true, "ALL SECURITY LIST:");
-			for(SecurityList sl:va.getSecLists()){
+			for(SecurityList sl:va.getSecLists().values()){
 				un.printSecListRules(sl);
 			}
-			List<Subnet> subnets = va.getSubnets();
+			Collection<Subnet> subnets = va.getSubnets().values();
 			for(Subnet s:subnets){
-				SubnetAsset sa = SubnetAsset.getInstance(vn, id, s.getId());
-				sk.printResult(1, true, "SUBNET: <"+sa.getSn().getDisplayName()+">, "+sa.getSn().getCidrBlock()+", "+sa.getSn().getSubnetDomainName()+", "+sa.getAd().getName());
-				sk.printResult(2, true, "OCID: "+sa.getSn().getId());
-				sk.printResult(2, true, "DHCP Options: <"+sa.getDhcp().getDisplayName()+">");
-				sk.printResult(2, true, "Route Table: <"+sa.getRt().getDisplayName()+">");
+				//SubnetAsset sa = SubnetAsset.getInstance(vn, id, s.getId());
+				sk.printResult(1, true, "SUBNET: "+h.objectName(s.getDisplayName())+", "+s.getCidrBlock()+", "+s.getSubnetDomainName()+", "+s.getAvailabilityDomain());
+				sk.printResult(2, true, "OCID: "+s.getId());
+				sk.printResult(2, true, "DHCP Options: "+h.objectName(va.getDhcpOptions().get(s.getDhcpOptionsId()).getDisplayName()));
+				sk.printResult(2, true, "Route Table: "+h.objectName(va.getRouteTables().get(s.getRouteTableId()).getDisplayName()));
 				int sli=0;
-				for(SecurityList sl:sa.getSecLists()){
-					sk.printResult(2, true, "SecList: ("+(++sli)+") <"+sl.getDisplayName()+">");
+				for(String slId:s.getSecurityListIds()){
+					sk.printResult(2, true, "SecList: ("+(++sli)+") "+h.objectName(va.getSecLists().get(slId).getDisplayName()));
 				}
 				// Instance detail
 				Map<Vnic,Instance> instances = un.getInstanceBySubnet(vn, c, s, Instance.LifecycleState.Running);
@@ -387,18 +605,6 @@ public class Jiu {
 		int i=0;
 		for(Region r:Region.values()){
 			sk.printResult(0, true, "("+(++i)+") "+r.getRegionId());
-		}
-		sk.printTitle(0, "End");
-	}
-	
-	public void showAdCode(String profile) throws IOException{
-		h.help(profile, "<profile-name>");
-		sk.printTitle(0, "Bare Metal ADs");
-		Identity id = Client.getIamClient(profile);
-		UtilIam ui = new UtilIam();
-		List<AvailabilityDomain> ads = ui.getAllAd(id, profile);
-		for(AvailabilityDomain ad:ads){
-			sk.printResult(0, true, ad.getName());
 		}
 		sk.printTitle(0, "End");
 	}
@@ -480,6 +686,17 @@ public class Jiu {
 	
 	// CREATOR //
 	
+	/**
+	 * Launch a new VM instance.
+	 * @param name
+	 * @param vcnName
+	 * @param subnetName
+	 * @param imageName
+	 * @param shapeName
+	 * @param userdataFilePath
+	 * @param profile
+	 * @throws Exception
+	 */
 	public void createVmInstance(String name, String vcnName, String subnetName, String imageName, String shapeName, String userdataFilePath, String profile) throws Exception{
 		h.help(name, "<name> <vcn-name> <subnet-name> <image-name> <shape-name> <user-data-file-path> <profile>");
 		sk.printTitle(0, "Creating VM");
@@ -491,6 +708,7 @@ public class Jiu {
 		String subnetId = un.getSubnetIdByName(vn, subnetName, un.getVcnIdByName(vn, vcnName, compartmentId), compartmentId);
 		String imageId = uc.getImageIdByName(c, imageName, compartmentId);
 		GetInstanceResponse gis = uc.createVmInstance(c, compartmentId, subnetId, name, imageId, shapeName, Config.publicKeyToString(profile), un.getAdBySubnetId(vn, subnetId), h.base64EncodeFromFile(userdataFilePath), Instance.LifecycleState.Running);
+		sk.printResult(0,true,gis.getInstance());
 		if(imageName.toLowerCase().contains("windows")){
 			InstanceCredentials ic = c.getWindowsInstanceInitialCredentials(GetWindowsInstanceInitialCredentialsRequest.builder().instanceId(gis.getInstance().getId()).build()).getInstanceCredentials();
 			sk.printResult(0, true, "Windows Login: "+ic.getUsername()+"/"+ic.getPassword());
@@ -498,6 +716,16 @@ public class Jiu {
 		sk.printTitle(0, "End");
 	}
 	
+	/**
+	 * Add a listener to existing load balancer.
+	 * @param name
+	 * @param protocol
+	 * @param port
+	 * @param lbName
+	 * @param backendSetName
+	 * @param profile
+	 * @throws Exception
+	 */
 	public void addLbListener(String name, String protocol, String port, String lbName, String backendSetName, String profile) throws Exception{
 		h.help(name, "<listener-name> <protocol> <port> <load-balancer-name> <backend-set-name> <profile>");
 		sk.printTitle(0, "Add Listener "+name+" to Load Balancer "+lbName+" BackendSet "+backendSetName);
@@ -509,6 +737,15 @@ public class Jiu {
 		sk.printTitle(0, "End");
 	}
 	
+	/**
+	 * Add a backend server to existing load balancer.
+	 * @param instanceName
+	 * @param instancePort
+	 * @param lbName
+	 * @param backendSetName
+	 * @param profile
+	 * @throws Exception
+	 */
 	public void addLbBackend(String instanceName, String instancePort, String lbName, String backendSetName, String profile) throws Exception{
 		h.help(instanceName, "<backend-instance-name> <load-balancer-name> <backendset-name> <profile>");
 		sk.printTitle(0, "Add Instance "+instanceName+" to Load Balancer "+lbName+" BackendSet "+backendSetName);
@@ -525,6 +762,18 @@ public class Jiu {
 		sk.printTitle(0, "End");
 	}
 	
+	/**
+	 * Add a backend set to existing load balancer.
+	 * @param name
+	 * @param vcnName
+	 * @param lbName
+	 * @param lbPolicy
+	 * @param hcProtocol
+	 * @param hcPort
+	 * @param hcUrlPath
+	 * @param profile
+	 * @throws Exception
+	 */
 	public void addLbBackendSet(String name, String vcnName, String lbName, String lbPolicy, String hcProtocol, String hcPort, String hcUrlPath, String profile) throws Exception{
 		h.help(name, "<name> <vcn-name> <load-balancer-name> <policy: ROUND_ROBIN|LEAST_CONNECTIONS|IP_HASH> <health-check-protocol> <health-check-port> <health-check-url-path> <profile>");
 		sk.printTitle(0, "Create Load Balancer Backend Set - "+name);
@@ -536,6 +785,16 @@ public class Jiu {
 		sk.printTitle(0, "End");
 	}
 	
+	/**
+	 * Create a load balancer.
+	 * @param name
+	 * @param vcnName
+	 * @param subnet1Name
+	 * @param subnet2Name
+	 * @param shape
+	 * @param profile
+	 * @throws Exception
+	 */
 	public void createLb(String name, String vcnName, String subnet1Name, String subnet2Name, String shape, String profile) throws Exception{
 		h.help(name, "<name> <vcn-name> <subnet-1-name> <subnet-2-name> <shape: 100Mbps|400Mbps|8000Mbps> <profile>");
 		sk.printTitle(0, "Create Load Balancer - "+name);
@@ -570,13 +829,139 @@ public class Jiu {
 	}
 	
 	// SETUP //
+	/**
+	 * Send actions to vm instance.
+	 * @param name
+	 * @param action
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void vmInstanceActionByName(String name, String action, String profile) throws Exception{
+		h.help(name, "<name> <action: start|stop|reset|softreset> <profile>");
+		sk.printTitle(0, "Executing VM instance action - "+action+" for "+name);
+		Compute c = Client.getComputeClient(profile);
+		UtilCompute uc = new UtilCompute();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		String instanceId = uc.getInstanceIdByName(c, name, compartmentId);
+		c.instanceAction(InstanceActionRequest.builder()
+				.instanceId(instanceId)
+				.action(action).build()).getInstance();
+		Instance.LifecycleState state = null;
+		if(action.equals("start")||action.equals("reset")||action.equals("softreset")){
+			state = Instance.LifecycleState.Running;
+		}
+		else if(action.equals("stop")){
+			state = Instance.LifecycleState.Stopped;
+		}
+		h.waitForInstanceStatus(c, instanceId, state, "waiting", false);
+		sk.printTitle(0, "End");
+	}
 	
 	/**
-	 * Create a new infrastructure for demo purpose.
+	 * Change backend drain status for LB.
+	 * @param lbName
+	 * @param backendSetName
+	 * @param backendName
+	 * @param drain
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void changeLbBackendDrain(String lbName, String backendSetName, String backendName, String drain, String profile) throws Exception{
+		h.help(lbName, "<load-balancer-name> <backendset-name> <backend-name> <drain: true|false> <profile>");
+		sk.printTitle(0, "Change "+backendName+" drain to "+drain);
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
+		UtilLB ulb = new UtilLB();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		String lbId = ulb.getLoadBalancerIdByName(lb, lbName, compartmentId);
+		ulb.changeBackendSetting(lb, lbId, backendSetName, backendName, null,drain.equals("true")?true:false,null,null);
+		sk.printTitle(0, "End");
+	}
+	
+	/**
+	 * Change backend weight for LB.
+	 * @param lbName
+	 * @param backendSetName
+	 * @param backendName
+	 * @param newWeight
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void changeLbBackendWeight(String lbName, String backendSetName, String backendName, String newWeight, String profile) throws Exception{
+		h.help(lbName, "<load-balancer-name> <backendset-name> <backend-name> <new-weight> <profile>");
+		sk.printTitle(0, "Change "+backendName+" to weight "+newWeight);
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
+		UtilLB ulb = new UtilLB();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		String lbId = ulb.getLoadBalancerIdByName(lb, lbName, compartmentId);
+		ulb.changeBackendSetting(lb, lbId, backendSetName, backendName, Integer.valueOf(newWeight),null,null,null);
+		sk.printTitle(0, "End");
+	}
+	
+	/**
+	 * Create a simple infra only includes 1 VCN, 1 Subnet, 1 Bastion.
+	 * @param namePrefix
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void demoCreateSingleBastionInfra(String namePrefix, String profile) throws Exception{
+		h.help(namePrefix, "<resource-name-prefix> <profile-name>");
+		String prefix = namePrefix!=null?namePrefix:"bgltest";
+		sk.printTitle(0, "Create Infrastructure - "+prefix);
+		Identity id = Client.getIamClient(profile);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilIam ui = new UtilIam();
+		UtilNetwork un = new UtilNetwork();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		// VCN
+		Vcn vcn = un.createVcn(vn, compartmentId, prefix+"vcn", "10.8.0.0/16", "Jiu - "+prefix+"vcn");
+		// IGW
+		InternetGateway igw = un.createIgw(vn, compartmentId, vcn.getId(), prefix+"igw");
+		// Public Route Table
+		RouteRule rr = RouteRule.builder().cidrBlock("0.0.0.0/0").networkEntityId(igw.getId()).build();
+		List<RouteRule> rrs = new ArrayList<RouteRule>(); rrs.add(rr);
+		RouteTable publicRouteTable = un.createRouteTable(vn, compartmentId, vcn.getId(), prefix+"rt-public", rrs);
+		
+		List<EgressSecurityRule> erAllowAll = un.getEgressAllowAllRules();
+		// Bastion SecList
+		List<IngressSecurityRule> irBastion = un.getBastionIngressSecurityRules("10.8.0.0/16");
+		SecurityList bastionSecList = un.createSecList(vn, compartmentId, vcn.getId(), prefix+"seclist-bastion-public", irBastion, erAllowAll);
+		List<String> bastionSecLists = new ArrayList<String>();
+		bastionSecLists.add(bastionSecList.getId());
+		
+		// Subnet
+		List<AvailabilityDomain> ads = ui.getAllAd(id, profile);
+		String snpub = prefix+"snpub";
+		Subnet[] pubSubnets = new Subnet[1];
+		for(int i=0;i<1;i++){
+			pubSubnets[i] = un.createSubnet(vn, compartmentId, vcn.getId(), 
+				snpub+i, snpub+i, 
+				"10.8."+i+".0/24", ads.get(i).getName(), 
+				vcn.getDefaultDhcpOptionsId(), publicRouteTable.getId(), bastionSecLists, "Jiu - "+snpub+i,
+				false);
+		}
+		Compute c = Client.getComputeClient(profile);
+		UtilCompute uc = new UtilCompute();
+		Image vmImage = null;
+		for(Image img:uc.getAllImage(c, compartmentId)){
+			if(img.getOperatingSystem().equals("Oracle Linux") && img.getOperatingSystemVersion().equals("7.3") && img.getDisplayName().contains("2017.04.18-0")){
+				vmImage = img;
+				break;
+			}
+		}
+		uc.createVmInstance(c, compartmentId, pubSubnets[0].getId(), 
+				prefix+"bastion", vmImage.getId(), "VM.Standard1.4", 
+				Config.publicKeyToString(profile), ads.get(0).getName(), h.base64EncodeFromFile(Config.getConfigFileReader(profile).get("bastion_user_data")), Instance.LifecycleState.Running);
+		this.showVcn(prefix+"vcn", profile);
+		sk.printTitle(0, "End");
+	}
+	
+	/**
+	 * Create a new infrastructure of simple web servers for demo purpose.
 	 * 
-	 * [Bastion]-[LB0]--[LB1]
+	 * [Bastion]-[LB0]--[LB1]	Public
 	 *  |----------|------|  
-	 * [ ]-------[Web0]-[Web1]
+	 * [ ]-------[Web0]-[Web1]	Web Internal
+	 * [ ]-------[    ]-[    ]	NoSQL Internal
 	 * 
 	 * 1. Compartment read from configuration file.
 	 * 2. One VCN.
@@ -584,17 +969,21 @@ public class Jiu {
 	 * 4. One Public Route Table.
 	 * 5. One Bastion security list with rules.
 	 * 6. One Web Server security list with rules.
-	 * 7. Six Subnets.
+	 * 7. Nine Subnets.
 	 * 	a. snpub0 => bastion seclist.
 	 * 	b. snpub1 => public lb seclist.
 	 *  c. supub2 => public lb seclist.
 	 *  d. subpri0 => webserver seclist.
 	 *  e. subpri1 => webservert seclist.
 	 *  f. subpri2 => webservert seclist.
+	 *  g. subnosql0 => nosql seclist.
+	 *  h. subnosql1 => nosql seclist.
+	 *  i. subnosql2 => nosql seclist.
 	 * 8. One Oracle Linux 7.3 Bastion. Public 
-	 * 9. Two Oracle Linux 7.3 Web Server. Private.
-	 * 10. One Load Balancer.
-	 * 11. Registering three Web Servers to Load Balancer.
+	 * 9. Three Oracle Linux 7.3 NoSQL DB. Private
+	 * 10. Two Oracle Linux 7.3 Web Server. Private.
+	 * 11. One Load Balancer.
+	 * 12. Registering three Web Servers to Load Balancer.
 	 * @param profile
 	 * @throws Exception
 	 */
@@ -618,7 +1007,7 @@ public class Jiu {
 		
 		List<EgressSecurityRule> erAllowAll = un.getEgressAllowAllRules();
 		// Bastion SecList
-		List<IngressSecurityRule> irBastion = un.getLinuxBastionIngressSecurityRules("10.7.0.0/16");
+		List<IngressSecurityRule> irBastion = un.getBastionIngressSecurityRules("10.7.0.0/16");
 		SecurityList bastionSecList = un.createSecList(vn, compartmentId, vcn.getId(), prefix+"seclist-bastion-public", irBastion, erAllowAll);
 		List<String> bastionSecLists = new ArrayList<String>();
 		bastionSecLists.add(bastionSecList.getId());
@@ -627,30 +1016,50 @@ public class Jiu {
 		SecurityList webserverSecList = un.createSecList(vn, compartmentId, vcn.getId(), prefix+"seclist-webserver-internal", irInternalWebserver, erAllowAll);
 		List<String> webserverSecLists = new ArrayList<String>();
 		webserverSecLists.add(webserverSecList.getId());
+		// NoSQL SecList
+		List<IngressSecurityRule> irInternalNoSql = un.getInternalNoSqlIngressSecurityRules(vcn.getCidrBlock());
+		SecurityList nosqlSecList = un.createSecList(vn, compartmentId, vcn.getId(), prefix+"seclist-nosql-internal", irInternalNoSql, erAllowAll);
+		List<String> nosqlSecLists = new ArrayList<String>();
+		nosqlSecLists.add(nosqlSecList.getId());
 		// Public LoadBalancer SecList
 		List<IngressSecurityRule> irPublicLoadBalancer = un.getPublicLoadBalancerIngressSecurityRules(new int[]{80,443});
 		SecurityList publicLoadBalancerSecList = un.createSecList(vn, compartmentId, vcn.getId(), prefix+"seclist-loadbalancer-public", irPublicLoadBalancer, erAllowAll);
 		List<String> publicLoadBalancerSecLists = new ArrayList<String>();
 		publicLoadBalancerSecLists.add(publicLoadBalancerSecList.getId());
 		
-		// 6 Subnets.
+		// 9 Subnets.
 		List<AvailabilityDomain> ads = ui.getAllAd(id, profile);
-		String snpub = prefix+"snpub";
+		// Public
+		String snpub = prefix+"pub";
 		Subnet[] pubSubnets = new Subnet[3];
 		for(int i=0;i<3;i++){
 			pubSubnets[i] = un.createSubnet(vn, compartmentId, vcn.getId(), 
 				snpub+i, snpub+i, 
 				"10.7."+i+".0/24", ads.get(i).getName(), 
-				vcn.getDefaultDhcpOptionsId(), publicRouteTable.getId(), i==0?bastionSecLists:publicLoadBalancerSecLists, "Jiu - "+snpub+i);
+				vcn.getDefaultDhcpOptionsId(), publicRouteTable.getId(), i==0?bastionSecLists:publicLoadBalancerSecLists, "Jiu - "+snpub+i,
+				false);
 		}
-		String snpri = prefix+"snpri";
+		// Private Web
+		String snpri = prefix+"webpri";
 		Subnet[] priSubnets = new Subnet[3];
 		for(int i=0;i<3;i++){
 			priSubnets[i] = un.createSubnet(vn, compartmentId, vcn.getId(), 
 				snpri+i, snpri+i, 
 				"10.7."+(i+3)+".0/24", ads.get(i).getName(), 
 				//vcn.getDefaultDhcpOptionsId(), vcn.getDefaultRouteTableId(), webserverSecLists, "Jiu - "+snpub+i); //TODO change to DefaultRouteTableId() when NAT is ready.
-				vcn.getDefaultDhcpOptionsId(), publicRouteTable.getId(), webserverSecLists, "Jiu - "+snpub+i);
+				vcn.getDefaultDhcpOptionsId(), publicRouteTable.getId(), webserverSecLists, "Jiu - "+snpri+i,
+				false); // TODO change to true when NAT is ready.
+		}
+		// Private NoSQL
+		String nosqlsnpri = prefix+"dbpri";
+		Subnet[] nosqlpriSubnets = new Subnet[3];
+		for(int i=0;i<3;i++){
+			nosqlpriSubnets[i] = un.createSubnet(vn, compartmentId, vcn.getId(), 
+				nosqlsnpri+i, nosqlsnpri+i, 
+				"10.7."+(i+6)+".0/24", ads.get(i).getName(), 
+				//vcn.getDefaultDhcpOptionsId(), vcn.getDefaultRouteTableId(), nosqlSecLists, "Jiu - "+nosqlsnpri+i); //TODO change to DefaultRouteTableId() when NAT is ready.
+				vcn.getDefaultDhcpOptionsId(), publicRouteTable.getId(), nosqlSecLists, "Jiu - "+nosqlsnpri+i,
+				false); // TODO change to true when NAT is ready.
 		}
 		// 1 Bastion.
 		Compute c = Client.getComputeClient(profile);
@@ -662,7 +1071,8 @@ public class Jiu {
 				break;
 			}
 		}
-		GetInstanceResponse bastionGis = uc.createVmInstance(c, compartmentId, pubSubnets[0].getId(), 
+		GetInstanceResponse 
+			bastionGis = uc.createVmInstance(c, compartmentId, pubSubnets[0].getId(), 
 				prefix+"bastion", vmImage.getId(), "VM.Standard1.4", 
 				Config.publicKeyToString(profile), ads.get(0).getName(), h.base64EncodeFromFile(Config.getConfigFileReader(profile).get("bastion_user_data")), Instance.LifecycleState.Provisioning);
 		// 2 Web Servers.
@@ -692,6 +1102,7 @@ public class Jiu {
 			ulb.addBackendToBackendSet(lb, backendSetName, lbId, uc.getPrivateIpByInstanceId(c, vn, instanceIds[i], compartmentId).get(0), 80);
 		}
 		// Output
+		sk.printTitle(0,"Output");
 		String regionId = Region.fromRegionId(Config.getConfigFileReader(profile.toUpperCase()).get("region")).getRegionId();
 		com.oracle.bmc.loadbalancer.model.LoadBalancer l = lb.getLoadBalancer(GetLoadBalancerRequest.builder().loadBalancerId(lbId).build()).getLoadBalancer();
 		sk.printResult(1, true, "Load Balancer@Region: "+regionId+", "+l.getIpAddresses().get(0)+", "+l.getDisplayName()+", "+lbLocationInfo);
@@ -708,6 +1119,7 @@ public class Jiu {
 		for(Vnic v:vnics){
 			sk.printResult(1, true, "Bastion@AD: "+v.getAvailabilityDomain()+", HostName: "+v.getHostnameLabel()+", "+v.getPrivateIp()+", "+v.getPublicIp());
 		}
+		//this.showVcn(prefix+"vcn", profile);
 		sk.printTitle(0, "Infrastructure - "+prefix+" created.");
 	}
 	
@@ -741,6 +1153,62 @@ public class Jiu {
 	
 	// DESTROYER //
 	
+	public void destroyLbByName(String lbName, String profile) throws Exception{
+		h.help(lbName, "<load-balancer-name> <profile>");
+		sk.printTitle(0, "Delete Load Balancer named "+lbName+" in profile comaprtment");
+		UtilLB ulb = new UtilLB();
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
+		String compartmentId = Config.getMyCompartmentId(profile);
+		ulb.deleteLoadBalancerByName(lb, lbName, compartmentId);
+		sk.printTitle(0, "End");
+	}
+	
+	/**
+	 * Delete instances in selected VCN by name prefix.
+	 * @param namePrefix
+	 * @param vcnName
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void destroyInstanceInVcn(String namePrefix, String vcnName, String profile) throws Exception{
+		h.help(namePrefix, "<instance-name-refix> <vcn-name> <profile>");
+		sk.printTitle(0, "Delete Instances with Name Prefix "+namePrefix+" in VCN "+vcnName);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilNetwork un = new UtilNetwork();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		String vcnId = un.getVcnIdByName(vn, vcnName, compartmentId);
+		Compute c = Client.getComputeClient(profile);
+		UtilCompute uc = new UtilCompute();
+		List<Instance> instances = c.listInstances(ListInstancesRequest.builder().compartmentId(compartmentId).build()).getItems();
+		TreeMap<String,String> snToInstance = new TreeMap<String,String>(); 
+		for(Instance vm:instances){
+			if(vm.getDisplayName().startsWith(namePrefix) && !vm.getLifecycleState().getValue().equals(Instance.LifecycleState.Terminated.getValue())){
+				List<VnicAttachment> vnicAttachments = c.listVnicAttachments(ListVnicAttachmentsRequest.builder().compartmentId(compartmentId).instanceId(vm.getId()).build()).getItems();
+				for(VnicAttachment va:vnicAttachments){
+					snToInstance.put(va.getSubnetId(), vm.getId());
+				}
+			}
+		}
+		List<Subnet> sns = vn
+				.listSubnets(ListSubnetsRequest.builder().compartmentId(compartmentId).vcnId(vcnId).build())
+				.getItems();
+		for(Subnet sn:sns){
+			for(String snId:snToInstance.keySet()){
+				if(snId.equals(sn.getId())){
+					uc.killInstanceById(c, compartmentId, snToInstance.get(snId));
+				}
+			}
+		}
+		sk.printTitle(0, "End");
+	}
+	
+	/**
+	 * Delete route tables in selected VCN by name prefix.
+	 * @param namePrefix
+	 * @param vcnName
+	 * @param profile
+	 * @throws Exception
+	 */
 	public void destroyRouteTableInVcn(String namePrefix, String vcnName, String profile) throws Exception{
 		h.help(namePrefix, "<route-table-name-refix> <vcn-name> <profile>");
 		sk.printTitle(0, "Delete Route Table with Name Prefix "+namePrefix+" in VCN "+vcnName);
@@ -787,10 +1255,21 @@ public class Jiu {
 		sk.printTitle(0, "VCN with name prefix "+namePrefix+" DESTROYED.");
 	}
 	
-	public void restGet(String apiVersion, String path, String resource, String profile) throws IOException{
-		h.help(apiVersion, "<api-version> <path> <resource> <profile>");
-		sk.printTitle(0, "/"+apiVersion+"/"+path+"/"+resource);
-		String[] ret = UtilMain.restGet(apiVersion, path, resource, profile);
+	/**
+	 * REST call.
+	 * @param method, lowercase
+	 * @param apiVersion
+	 * @param path
+	 * @param resource
+	 * @param parameter {p1:v1,p2:v2,p3:v3}
+	 * @param profile
+	 * @throws IOException
+	 */
+	//TODO
+	public void restCall(String method, String apiVersion, String slashPath, String profile) throws IOException{
+		h.help(method, "<method> <api-version> <slash-separated-path> <profile>");
+		sk.printTitle(0, "/"+apiVersion+"/"+slashPath);
+		String[] ret = UtilMain.restCall(method, apiVersion, slashPath.split("/"), profile);
 		sk.printResult(0, true, "Response Headers:");
 		System.out.println(ret[0]);
 		sk.printResult(0, true, "Response Body:");
@@ -834,6 +1313,7 @@ public class Jiu {
 			for (String s : ts) {
 				sk.printResult(1, true, s);
 			}
+			sk.printTitle(0,"End");
 			return;
 		}
 
