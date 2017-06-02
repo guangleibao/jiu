@@ -64,6 +64,8 @@ import com.oracle.bmc.loadbalancer.LoadBalancerClient;
 import com.oracle.bmc.loadbalancer.model.Backend;
 import com.oracle.bmc.loadbalancer.model.LoadBalancerPolicy;
 import com.oracle.bmc.loadbalancer.model.LoadBalancerShape;
+import com.oracle.bmc.loadbalancer.model.WorkRequest;
+import com.oracle.bmc.loadbalancer.model.WorkRequestError;
 import com.oracle.bmc.loadbalancer.requests.GetLoadBalancerRequest;
 import com.oracle.bmc.loadbalancer.requests.ListLoadBalancersRequest;
 import com.oracle.bmc.objectstorage.ObjectStorage;
@@ -539,7 +541,7 @@ public class Jiu {
 			Collection<Subnet> subnets = va.getSubnets().values();
 			for(Subnet s:subnets){
 				//SubnetAsset sa = SubnetAsset.getInstance(vn, id, s.getId());
-				sk.printResult(1, true, "SUBNET: "+h.objectName(s.getDisplayName())+", "+s.getCidrBlock()+", "+s.getSubnetDomainName()+", "+s.getAvailabilityDomain());
+				sk.printResult(1, true, "SUBNET: "+h.objectName(s.getDisplayName())+", "+s.getCidrBlock()+", "+s.getSubnetDomainName()+", "+s.getAvailabilityDomain()+", "+(s.getProhibitPublicIpOnVnic()?"Private":"Public"));
 				sk.printResult(2, true, "OCID: "+s.getId());
 				sk.printResult(2, true, "DHCP Options: "+h.objectName(va.getDhcpOptions().get(s.getDhcpOptionsId()).getDisplayName()));
 				sk.printResult(2, true, "Route Table: "+h.objectName(va.getRouteTables().get(s.getRouteTableId()).getDisplayName()));
@@ -1089,8 +1091,29 @@ public class Jiu {
 		String lbId = ulb.createLoadBalancer(lb, prefix+"lb", "100Mbps", pubSubnets[1].getId(), pubSubnets[2].getId(), compartmentId).getLoadBalancerId();
 		String lbLocationInfo = pubSubnets[1].getCidrBlock()+"@"+pubSubnets[1].getAvailabilityDomain()+", "+pubSubnets[2].getCidrBlock()+"@"+pubSubnets[2].getAvailabilityDomain();
 		String backendSetName = prefix+"lbbes";
-		ulb.addBackendSetForLoadBalancer(lb, backendSetName, lbId, "ROUND_ROBIN", "HTTP", 80, "/index.html");
-		ulb.addListenerForLoadBalancer(lb, prefix+"lbl", "HTTP", 80, lbId, backendSetName);
+		
+		WorkRequest wr1 = null;
+		do{
+			wr1 = ulb.addBackendSetForLoadBalancer(lb, backendSetName, lbId, "ROUND_ROBIN", "HTTP", 80, "/index.html");
+			List<WorkRequestError> errors = wr1.getErrorDetails();
+			if(errors!=null && errors.size()>0){
+				for(WorkRequestError error:errors){
+					sk.printResult(3, true, error.getMessage());
+				}
+			}
+		}while(wr1.getErrorDetails()!=null && wr1.getErrorDetails().size()>0);
+		
+		WorkRequest wr2 = null;
+		do{
+			wr2 = ulb.addListenerForLoadBalancer(lb, prefix+"lbl", "HTTP", 80, lbId, backendSetName);
+			List<WorkRequestError> errors = wr2.getErrorDetails();
+			if(errors!=null && errors.size()>0){
+				for(WorkRequestError error:errors){
+					sk.printResult(3, true, error.getMessage());
+				}
+			}
+		}while(wr2.getErrorDetails()!=null && wr2.getErrorDetails().size()>0);
+		
 		String[] instanceIds = new String[2];
 		for(int i=0;i<2;i++){
 			GetInstanceResponse r = webGis[i];
@@ -1155,7 +1178,7 @@ public class Jiu {
 	
 	public void destroyLbByName(String lbName, String profile) throws Exception{
 		h.help(lbName, "<load-balancer-name> <profile>");
-		sk.printTitle(0, "Delete Load Balancer named "+lbName+" in profile comaprtment");
+		sk.printTitle(0, "Delete Load Balancer named "+lbName+" in profile compartment");
 		UtilLB ulb = new UtilLB();
 		LoadBalancer lb = Client.getLoadBalancerClient(profile);
 		String compartmentId = Config.getMyCompartmentId(profile);

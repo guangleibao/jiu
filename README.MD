@@ -2,7 +2,8 @@
 
 **No file in this repo provides production warranty!! It's just for fun.**
 
-+ Check [Oracle official site](https://docs.us-phoenix-1.oraclecloud.com/Content/API/SDKDocs/javasdk.htm) for Bare Metal Cloud Java SDK download, configure and install.
++ First time user please check [Oracle official site](https://docs.us-phoenix-1.oraclecloud.com/Content/API/SDKDocs/javasdk.htm) for Bare Metal Cloud Java SDK download, configure and install.
++ Current SDK [download page](https://github.com/oracle/bmcs-java-sdk/releases).
 
 Sample config file **`~/.oraclebmc/config`** to run `Jiu`:
 
@@ -24,7 +25,11 @@ Sample config file **`~/.oraclebmc/config`** to run `Jiu`:
 		webserver1_user_data=<file_location>
 		webserver2_user_data=<file_location_NOT_USED>
 
+		[PHOENIX]
+		...
 
+		[ASHBURN]
+		...
 
 + Edit `pom-sample.xml` to correct the `<bmc.jar.location>` property and rename it to `pom.xml` to build.
 
