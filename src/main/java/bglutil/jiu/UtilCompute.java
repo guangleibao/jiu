@@ -183,7 +183,7 @@ public class UtilCompute extends UtilMain{
 	public void killInstanceById(Compute c, String compartmentId, String instanceId) throws Exception{
 		String name = this.getInstanceNameById(c, instanceId);
 		c.terminateInstance(TerminateInstanceRequest.builder().instanceId(instanceId).build());
-		h.waitForInstanceStatus(c, instanceId, Instance.LifecycleState.Terminated, "Terminating VM Instance "+name, true);
+		h.waitForInstanceStatus(c, instanceId, Instance.LifecycleState.Terminating, "Terminating VM Instance "+name, true);
 	}
 	
 	// CREATOR //

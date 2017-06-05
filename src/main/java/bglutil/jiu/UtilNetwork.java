@@ -41,6 +41,7 @@ import com.oracle.bmc.core.requests.DeleteRouteTableRequest;
 import com.oracle.bmc.core.requests.DeleteSecurityListRequest;
 import com.oracle.bmc.core.requests.DeleteSubnetRequest;
 import com.oracle.bmc.core.requests.DeleteVcnRequest;
+import com.oracle.bmc.core.requests.GetInstanceRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
 import com.oracle.bmc.core.requests.GetSubnetRequest;
 import com.oracle.bmc.core.requests.ListDhcpOptionsRequest;
@@ -588,6 +589,74 @@ public class UtilNetwork extends UtilMain {
 	}
 
 
+	
+	public void deleteVcnVmInstanceByVcnNamePrefix(LoadBalancer lb, VirtualNetwork vn, Compute c, String compartmentId, String vcnNamePrefix) throws Exception{
+		ListVcnsResponse res = vn.listVcns(ListVcnsRequest.builder().compartmentId(compartmentId).build());
+		UtilCompute uc = new UtilCompute();
+		for (Vcn v : res.getItems()) {
+			if (v.getDisplayName().startsWith(vcnNamePrefix)) {
+				// Remove Load Balancers
+				List<com.oracle.bmc.loadbalancer.model.LoadBalancer> lbs = lb.listLoadBalancers(ListLoadBalancersRequest.builder().compartmentId(compartmentId).build()).getItems();
+				for(com.oracle.bmc.loadbalancer.model.LoadBalancer l:lbs){
+					for(String snid:l.getSubnetIds()){//TODO
+						//System.out.println("SNID: "+snid);
+						String vcnid = vn.getSubnet(GetSubnetRequest.builder().subnetId(snid).build()).getSubnet().getVcnId();
+						if(vcnid.equals(v.getId())){
+							String wrId = lb.deleteLoadBalancer(DeleteLoadBalancerRequest.builder().loadBalancerId(l.getId()).build()).getOpcWorkRequestId();
+							h.waitForWorkReqeustStatus(lb, wrId, "Deleting Load Balancer "+l.getDisplayName(), true);
+							break;
+						}
+					}
+				}
+				// Remove VM instances
+				List<Subnet> targetSubnet = vn
+						.listSubnets(ListSubnetsRequest.builder().compartmentId(compartmentId).vcnId(v.getId()).build())
+						.getItems();
+				List<Instance> instances = c.listInstances(ListInstancesRequest.builder().compartmentId(compartmentId).build()).getItems();
+				TreeMap<String,String> instanceToSubnet = new TreeMap<String,String>(); 
+				for(Instance vm:instances){
+					if(!vm.getLifecycleState().getValue().equals(Instance.LifecycleState.Terminated.getValue())){
+						List<VnicAttachment> vnicAttachments = c.listVnicAttachments(ListVnicAttachmentsRequest.builder().compartmentId(compartmentId).instanceId(vm.getId()).build()).getItems();
+						for(VnicAttachment va:vnicAttachments){
+							for(Subnet s:targetSubnet){
+								if(s.getId().equals(va.getSubnetId())){
+									instanceToSubnet.put(vm.getId(),va.getSubnetId());
+								}
+							}
+						}
+					}
+				}
+				List<String> killList = new ArrayList<String>();
+				for(String instanceId:instanceToSubnet.keySet()){
+					Instance iii = c.getInstance(GetInstanceRequest.builder().instanceId(instanceId).build()).getInstance();
+					if(!iii.getLifecycleState().equals(Instance.LifecycleState.Terminated) || iii.getLifecycleState().equals(Instance.LifecycleState.Terminating)){
+						uc.killInstanceById(c, compartmentId, instanceId);
+						killList.add(instanceId);
+					}
+				}
+				/*
+				for(Subnet targetSn:targetSubnet){
+					for(String vmSnId:instanceToSubnet.values()){
+						for(String instanceId:instanceToSubnet.keySet()){
+							if(targetSn.getId().equals(vmSnId)){
+								Instance iii = c.getInstance(GetInstanceRequest.builder().instanceId(instanceId).build()).getInstance();
+								if(!iii.getLifecycleState().equals(Instance.LifecycleState.Terminated) || iii.getLifecycleState().equals(Instance.LifecycleState.Terminating)){
+									uc.killInstanceById(c, compartmentId, instanceId);
+									killList.add(instanceId);
+								}
+							}
+						}
+					}
+				}*/
+				String[] k = new String[killList.size()];
+				for(int i=0;i<k.length;i++){
+					k[i] = killList.get(i);
+				}
+				sk.printResult(0, true, "Waiting terminated status");
+				h.silentWaitForInstanceStatus(c, k, Instance.LifecycleState.Terminated, true);
+			}
+		}
+	}
 	
 	/**
 	 * Delete all VCN with matching display name prefix and cascade delete all resource within it.

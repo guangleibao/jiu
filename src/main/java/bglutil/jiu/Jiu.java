@@ -496,7 +496,7 @@ public class Jiu {
 			wildhunt = true;
 		}
 		for (Vcn v:un.getAllVcn(vn, compartmentId)){
-			if(!wildhunt && !name.toLowerCase().equals(v.getDisplayName().toLowerCase())){
+			if(!wildhunt && !v.getDisplayName().toLowerCase().startsWith(name.toLowerCase())){
 				continue;
 			}
 			VcnAsset va = VcnAsset.getInstance(vn, id, v.getId(), compartmentId);
@@ -558,7 +558,8 @@ public class Jiu {
 							+nic.getPrivateIp()+", "
 							+nic.getPublicIp()+", "
 							+instances.get(nic).getShape()+", "
-							+uc.getImageNameById(c,instances.get(nic).getImageId()));
+							+uc.getImageNameById(c,instances.get(nic).getImageId())+", "
+							+instances.get(nic).getLifecycleState().getValue());
 				}
 			}
 			LoadBalancer lb = Client.getLoadBalancerClient(profile);
@@ -899,6 +900,73 @@ public class Jiu {
 		sk.printTitle(0, "End");
 	}
 	
+	
+	
+	
+	/**
+	 * Create several public accessible vm instances in a new VCN. Shape: VM.Standard1.1
+	 * @param namePrefix
+	 * @param count
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void demoCreateVmGroup(String namePrefix, String count, String profile) throws Exception{
+		h.help(namePrefix, "<vm-name-prefix> <vm-count> <profile-name>");
+		String prefix = namePrefix!=null?namePrefix:"bgltest";
+		sk.printTitle(0, "Create VM group - "+prefix);
+		Identity id = Client.getIamClient(profile);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilIam ui = new UtilIam();
+		UtilNetwork un = new UtilNetwork();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		// VCN
+		Vcn vcn = un.createVcn(vn, compartmentId, prefix+"vcn", "10.10.0.0/16", "Jiu - "+prefix+"vcn");
+		// IGW
+		InternetGateway igw = un.createIgw(vn, compartmentId, vcn.getId(), prefix+"igw");
+		// Public Route Table
+		RouteRule rr = RouteRule.builder().cidrBlock("0.0.0.0/0").networkEntityId(igw.getId()).build();
+		List<RouteRule> rrs = new ArrayList<RouteRule>(); rrs.add(rr);
+		RouteTable publicRouteTable = un.createRouteTable(vn, compartmentId, vcn.getId(), prefix+"rt-public", rrs);
+		
+		List<EgressSecurityRule> erAllowAll = un.getEgressAllowAllRules();
+		// Bastion SecList
+		List<IngressSecurityRule> irBastion = un.getBastionIngressSecurityRules("10.10.0.0/16");
+		SecurityList bastionSecList = un.createSecList(vn, compartmentId, vcn.getId(), prefix+"seclist-bastion-public", irBastion, erAllowAll);
+		List<String> bastionSecLists = new ArrayList<String>();
+		bastionSecLists.add(bastionSecList.getId());
+		
+		// Subnet
+		List<AvailabilityDomain> ads = ui.getAllAd(id, profile);
+		String snpub = prefix+"snpub";
+		Subnet[] pubSubnets = new Subnet[1];
+		int cnt = Integer.valueOf(count);
+		for(int i=0;i<1;i++){
+			pubSubnets[i] = un.createSubnet(vn, compartmentId, vcn.getId(), 
+				snpub+i, snpub+i, 
+				"10.10."+i+".0/24", ads.get(i).getName(), 
+				vcn.getDefaultDhcpOptionsId(), publicRouteTable.getId(), bastionSecLists, "Jiu - "+snpub+i,
+				false);
+		}
+		Compute c = Client.getComputeClient(profile);
+		UtilCompute uc = new UtilCompute();
+		Image vmImage = null;
+		for(Image img:uc.getAllImage(c, compartmentId)){
+			if(img.getOperatingSystem().equals("Oracle Linux") && img.getOperatingSystemVersion().equals("7.3") && img.getDisplayName().contains("2017.04.18-0")){
+				vmImage = img;
+				break;
+			}
+		}
+		String[] instanceIds = new String[cnt];
+		for(int i=0;i<cnt;i++){
+			instanceIds[i] = uc.createVmInstance(c, compartmentId, pubSubnets[0].getId(), 
+				prefix+"node"+i, vmImage.getId(), "VM.Standard1.1", 
+				Config.publicKeyToString(profile), ads.get(0).getName(), h.base64EncodeFromFile(Config.getConfigFileReader(profile).get("bastion_user_data")), Instance.LifecycleState.Provisioning).getInstance().getId();
+		}
+		//this.showVcn(prefix+"vcn", profile);
+		h.silentWaitForInstanceStatus(c, instanceIds, Instance.LifecycleState.Running, false);
+		sk.printTitle(0, "End");
+	}
+	
 	/**
 	 * Create a simple infra only includes 1 VCN, 1 Subnet, 1 Bastion.
 	 * @param namePrefix
@@ -951,7 +1019,7 @@ public class Jiu {
 			}
 		}
 		uc.createVmInstance(c, compartmentId, pubSubnets[0].getId(), 
-				prefix+"bastion", vmImage.getId(), "VM.Standard1.4", 
+				prefix+"bastion", vmImage.getId(), "VM.Standard1.1", 
 				Config.publicKeyToString(profile), ads.get(0).getName(), h.base64EncodeFromFile(Config.getConfigFileReader(profile).get("bastion_user_data")), Instance.LifecycleState.Running);
 		this.showVcn(prefix+"vcn", profile);
 		sk.printTitle(0, "End");
@@ -1075,7 +1143,7 @@ public class Jiu {
 		}
 		GetInstanceResponse 
 			bastionGis = uc.createVmInstance(c, compartmentId, pubSubnets[0].getId(), 
-				prefix+"bastion", vmImage.getId(), "VM.Standard1.4", 
+				prefix+"bastion", vmImage.getId(), "VM.Standard1.1", 
 				Config.publicKeyToString(profile), ads.get(0).getName(), h.base64EncodeFromFile(Config.getConfigFileReader(profile).get("bastion_user_data")), Instance.LifecycleState.Provisioning);
 		// 2 Web Servers.
 		GetInstanceResponse[] webGis = new GetInstanceResponse[2];
@@ -1267,15 +1335,33 @@ public class Jiu {
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void destroyVcn(String namePrefix, String profile) throws Exception{
+	public void nukeVcn(String namePrefix, String profile) throws Exception{
 		h.help(namePrefix, "<vcn-name-refix> <profile>");
 		sk.printTitle(0, "Delete VCN with Name Prefix "+namePrefix);
+		this.nullrayVcn(namePrefix, profile);
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
 		LoadBalancer lb = Client.getLoadBalancerClient(profile);
 		UtilNetwork un = new UtilNetwork();
 		Compute c = Client.getComputeClient(profile);
 		un.deleteVcnByNamePrefix(lb, vn, c, Config.getMyCompartmentId(profile), namePrefix);
 		sk.printTitle(0, "VCN with name prefix "+namePrefix+" DESTROYED.");
+	}
+	
+	/**
+	 * 
+	 * @param namePrefix
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void nullrayVcn(String namePrefix, String profile) throws Exception{
+		h.help(namePrefix, "<vcn-name-refix> <profile>");
+		sk.printTitle(0, "Nullray VCN vm instances with VCN Name Prefix "+namePrefix);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
+		UtilNetwork un = new UtilNetwork();
+		Compute c = Client.getComputeClient(profile);
+		un.deleteVcnVmInstanceByVcnNamePrefix(lb, vn, c, Config.getMyCompartmentId(profile), namePrefix);
+		sk.printTitle(0, "VCN with name prefix "+namePrefix+" nullrayfied.");
 	}
 	
 	/**

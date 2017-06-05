@@ -31,6 +31,12 @@ Sample config file **`~/.oraclebmc/config`** to run `Jiu`:
 		[ASHBURN]
 		...
 
-+ Edit `pom-sample.xml` to correct the `<bmc.jar.location>` property and rename it to `pom.xml` to build.
++ [Download Maven](https://maven.apache.org/download.cgi).
+
++ [Install Maven](https://maven.apache.org/install.html).  
+
++ Edit `pom-sample.xml` to correct the `<bmc.jar.location>` property and rename it to `pom.xml`.
+
++ `mvn pacakge`
 
 + Main class is `bglutil.jiu.Jiu`, zero args execution shows the help message.
