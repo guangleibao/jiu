@@ -963,6 +963,7 @@ public class Jiu {
 				Config.publicKeyToString(profile), ads.get(0).getName(), h.base64EncodeFromFile(Config.getConfigFileReader(profile).get("bastion_user_data")), Instance.LifecycleState.Provisioning).getInstance().getId();
 		}
 		//this.showVcn(prefix+"vcn", profile);
+		sk.printResult(0, true, "Waiting running status");
 		h.silentWaitForInstanceStatus(c, instanceIds, Instance.LifecycleState.Running, false);
 		sk.printTitle(0, "End");
 	}
