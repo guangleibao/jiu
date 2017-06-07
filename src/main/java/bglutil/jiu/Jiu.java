@@ -710,7 +710,9 @@ public class Jiu {
 		String compartmentId = Config.getMyCompartmentId(profile);
 		String subnetId = un.getSubnetIdByName(vn, subnetName, un.getVcnIdByName(vn, vcnName, compartmentId), compartmentId);
 		String imageId = uc.getImageIdByName(c, imageName, compartmentId);
-		GetInstanceResponse gis = uc.createVmInstance(c, compartmentId, subnetId, name, imageId, shapeName, Config.publicKeyToString(profile), un.getAdBySubnetId(vn, subnetId), h.base64EncodeFromFile(userdataFilePath), Instance.LifecycleState.Running);
+		GetInstanceResponse gis = uc.createVmInstance(c, compartmentId, subnetId, name, imageId, shapeName, Config.publicKeyToString(profile), un.getAdBySubnetId(vn, subnetId), 
+				userdataFilePath.equalsIgnoreCase("null")?null:h.base64EncodeFromFile(userdataFilePath), 
+				Instance.LifecycleState.Running);
 		sk.printResult(0,true,gis.getInstance());
 		if(imageName.toLowerCase().contains("windows")){
 			InstanceCredentials ic = c.getWindowsInstanceInitialCredentials(GetWindowsInstanceInitialCredentialsRequest.builder().instanceId(gis.getInstance().getId()).build()).getInstanceCredentials();
