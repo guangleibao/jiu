@@ -1505,5 +1505,10 @@ public class Jiu {
 
 	public static void main(String[] args) throws Exception {
 		coreV2(args);
+		/*
+		Jiu j = new Jiu();
+		j.createVmInstance("test1", "Test-plus", "Public Subnet Lgmh:PHX-AD-1", "fm_optimizer_vm",
+				"VM.Standard1.1", "/Users/guanglei/git/fuf/bootstrap-bastion.sh", "test");*/
+		
 	}
 }

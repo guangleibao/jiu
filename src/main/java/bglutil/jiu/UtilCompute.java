@@ -167,7 +167,42 @@ public class UtilCompute extends UtilMain{
 	public Set<String> getAllShape(Compute c, String compartmentId){
 		TreeSet<String> ts = new TreeSet<String>();
 		for(Shape s:c.listShapes(ListShapesRequest.builder().compartmentId(compartmentId).build()).getItems()){
-			ts.add(s.getShape());
+			String sh = s.getShape();
+			String ss = null;
+			if(sh.equals("BM.Standard1.36")){
+				ss = sh+" 256GB";
+			}
+			else if(sh.equals("BM.HighIO1.36")){
+				ss = sh+" 512GB 12.8TB NVMe SSD";
+			}
+			else if(sh.equals("BM.DenseIO1.36")){
+				ss = sh+" 512GB 28.8TB NVMe SSD";
+			}
+			else if(sh.equals("VM.Standard1.1")){
+				ss = sh+" 7GB";
+			}
+			else if(sh.equals("VM.Standard1.2")){
+				ss = sh+" 14GB";
+			}
+			else if(sh.equals("VM.Standard1.4")){
+				ss = sh+" 28GB";
+			}
+			else if(sh.equals("VM.Standard1.8")){
+				ss = sh+" 56GB";
+			}
+			else if(sh.equals("VM.Standard1.16")){
+				ss = sh+" 112GB";
+			}
+			else if(sh.equals("VM.DenseIO1.4")){
+				ss = sh+" 60GB 3.2TB NVMe SSD";
+			}
+			else if(sh.equals("VM.DenseIO1.8")){
+				ss = sh+" 120GB 6.4TB NVMe SSD";
+			}
+			else if(sh.equals("VM.DenseIO1.16")){
+				ss = sh+" 240GB 12.8TB NVMe SSD";
+			}
+			ts.add(ss);
 		}
 		return ts;
 	}
