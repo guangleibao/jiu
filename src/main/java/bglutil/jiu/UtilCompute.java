@@ -10,20 +10,28 @@ import java.util.TreeSet;
 
 import com.oracle.bmc.core.Compute;
 import com.oracle.bmc.core.VirtualNetwork;
+import com.oracle.bmc.core.model.AttachIScsiVolumeDetails;
+import com.oracle.bmc.core.model.AttachVolumeDetails;
+import com.oracle.bmc.core.model.IScsiVolumeAttachment;
 import com.oracle.bmc.core.model.Image;
 import com.oracle.bmc.core.model.Instance;
 import com.oracle.bmc.core.model.LaunchInstanceDetails;
 import com.oracle.bmc.core.model.Shape;
 import com.oracle.bmc.core.model.Vnic;
 import com.oracle.bmc.core.model.VnicAttachment;
+import com.oracle.bmc.core.model.VolumeAttachment;
+import com.oracle.bmc.core.requests.AttachVolumeRequest;
+import com.oracle.bmc.core.requests.DetachVolumeRequest;
 import com.oracle.bmc.core.requests.GetImageRequest;
 import com.oracle.bmc.core.requests.GetInstanceRequest;
 import com.oracle.bmc.core.requests.GetVnicRequest;
+import com.oracle.bmc.core.requests.GetVolumeAttachmentRequest;
 import com.oracle.bmc.core.requests.LaunchInstanceRequest;
 import com.oracle.bmc.core.requests.ListImagesRequest;
 import com.oracle.bmc.core.requests.ListInstancesRequest;
 import com.oracle.bmc.core.requests.ListShapesRequest;
 import com.oracle.bmc.core.requests.ListVnicAttachmentsRequest;
+import com.oracle.bmc.core.requests.ListVolumeAttachmentsRequest;
 import com.oracle.bmc.core.requests.TerminateInstanceRequest;
 import com.oracle.bmc.core.responses.GetInstanceResponse;
 import com.oracle.bmc.core.responses.LaunchInstanceResponse;
@@ -37,6 +45,12 @@ public class UtilCompute extends UtilMain{
 	}
 	
 	// GETTER //
+	
+	public List<VolumeAttachment> getVolumeAttachment(Compute c, Instance i, String compartmentId){
+		return c.listVolumeAttachments(ListVolumeAttachmentsRequest.builder().instanceId(i.getId())
+				.availabilityDomain(i.getAvailabilityDomain())
+				.compartmentId(compartmentId).build()).getItems();
+	}
 	
 	/**
 	 * Get private ip addresses on VM instance.
@@ -90,6 +104,22 @@ public class UtilCompute extends UtilMain{
 			}
 		}
 		return ocid;
+	}
+	
+	public List<Instance> getAllInstance(Compute c, String compartmentId){
+		List<Instance> instances = c.listInstances(ListInstancesRequest.builder().compartmentId(compartmentId).build()).getItems();
+		return instances;
+	}
+	
+	public Instance getInstanceByName(Compute c, String name, String compartmentId){
+		List<Instance> instances = c.listInstances(ListInstancesRequest.builder().compartmentId(compartmentId).build()).getItems();
+		Instance inst = null;
+		for(Instance i:instances){
+			if(i.getDisplayName().equals(name) && !i.getLifecycleState().equals(Instance.LifecycleState.Terminated)){
+				inst = i;
+			}
+		}
+		return inst;
 	}
 	
 	public String getInstanceIpByName(Compute c, VirtualNetwork vn, String name, String privateOrPublic, String compartmentId){
@@ -221,7 +251,30 @@ public class UtilCompute extends UtilMain{
 		h.waitForInstanceStatus(c, instanceId, Instance.LifecycleState.Terminating, "Terminating VM Instance "+name, true);
 	}
 	
+	public void detachVolume(Compute c, String volumeAttachmentId){
+		c.detachVolume(DetachVolumeRequest.builder().volumeAttachmentId(volumeAttachmentId).build());
+		VolumeAttachment check = null;
+		while(true){
+			h.wait(1000);
+			check = c.getVolumeAttachment(GetVolumeAttachmentRequest.builder().volumeAttachmentId(volumeAttachmentId).build()).getVolumeAttachment();
+			sk.printResult(0,true,check.getLifecycleState().getValue());
+			if(check.getLifecycleState().equals(VolumeAttachment.LifecycleState.Detached)){
+				break;
+			}
+		}
+	}
+	
 	// CREATOR //
+	
+	public IScsiVolumeAttachment attachVolumeIscsi(Compute c, String attachName, String instanceId, String volumeId){
+		IScsiVolumeAttachment va = (IScsiVolumeAttachment) c.attachVolume(AttachVolumeRequest.builder().attachVolumeDetails(AttachIScsiVolumeDetails.builder()
+				.displayName(attachName)
+				.instanceId(instanceId)
+				.volumeId(volumeId).build()
+				).build()).getVolumeAttachment();
+		return va;
+	}
+	
 	/**
 	 * Launch a new VM instance.
 	 * @param c

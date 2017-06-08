@@ -333,6 +333,27 @@ public class UtilNetwork extends UtilMain {
 		}
 		return id;
 	}
+	
+	/**
+	 * Get Subnet object by Subnet Name.
+	 * @param vn
+	 * @param subnetName
+	 * @param vcnId
+	 * @param compartmentId
+	 * @return
+	 */
+	public Subnet getSubnetByName(VirtualNetwork vn, String subnetName, String vcnId, String compartmentId){
+		List<Subnet> subnets = vn.listSubnets(ListSubnetsRequest.builder().compartmentId(compartmentId)
+				.vcnId(vcnId).build()).getItems();
+		Subnet sn = null;
+		for(Subnet s:subnets){
+			if(s.getDisplayName().equals(subnetName)){
+				sn = s;
+				break;
+			}
+		}
+		return sn;
+	}
 
 	/**
 	 * Get all VCN in a compartment.

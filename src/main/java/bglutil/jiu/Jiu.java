@@ -19,6 +19,7 @@ import java.util.TreeSet;
 
 import com.oracle.bmc.audit.Audit;
 import com.oracle.bmc.audit.AuditClient;
+import com.oracle.bmc.core.Blockstorage;
 import com.oracle.bmc.core.BlockstorageClient;
 import com.oracle.bmc.core.Compute;
 import com.oracle.bmc.core.ComputeClient;
@@ -28,6 +29,7 @@ import com.oracle.bmc.core.model.DhcpOption;
 import com.oracle.bmc.core.model.DhcpOptions;
 import com.oracle.bmc.core.model.Drg;
 import com.oracle.bmc.core.model.EgressSecurityRule;
+import com.oracle.bmc.core.model.IScsiVolumeAttachment;
 import com.oracle.bmc.core.model.Image;
 import com.oracle.bmc.core.model.IngressSecurityRule;
 import com.oracle.bmc.core.model.Instance;
@@ -40,10 +42,13 @@ import com.oracle.bmc.core.model.Subnet;
 import com.oracle.bmc.core.model.Vcn;
 import com.oracle.bmc.core.model.Vnic;
 import com.oracle.bmc.core.model.VnicAttachment;
+import com.oracle.bmc.core.model.Volume;
+import com.oracle.bmc.core.model.VolumeAttachment;
 import com.oracle.bmc.core.requests.GetDrgRequest;
 import com.oracle.bmc.core.requests.GetInternetGatewayRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
 import com.oracle.bmc.core.requests.GetSubnetRequest;
+import com.oracle.bmc.core.requests.GetVolumeAttachmentRequest;
 import com.oracle.bmc.core.requests.GetWindowsInstanceInitialCredentialsRequest;
 import com.oracle.bmc.core.requests.InstanceActionRequest;
 import com.oracle.bmc.core.requests.ListInstancesRequest;
@@ -158,6 +163,85 @@ public class Jiu {
 	}
 	
 	// SHOW //
+	
+	public void detachVolume(String volumeName, String instanceName, String profile) throws NumberFormatException, IOException{
+		h.help(volumeName, "<volume-name> <instance-name> <profile>");
+		sk.printTitle(0, "Detach "+volumeName+" from "+instanceName);
+		Compute c = Client.getComputeClient(profile);
+		Blockstorage bs = Client.getBlockstorageClient(profile);
+		UtilCompute uc = new UtilCompute();
+		UtilBlockStorage ubs = new UtilBlockStorage();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		Instance i = uc.getInstanceByName(c, instanceName, compartmentId);
+		List<VolumeAttachment> va = uc.getVolumeAttachment(c, i, compartmentId);
+		for(VolumeAttachment v:va){
+			if(!v.getLifecycleState().equals(VolumeAttachment.LifecycleState.Detached)){
+				String volumeId = v.getVolumeId();
+				String vName = ubs.getVolumeById(bs, volumeId).getDisplayName();
+				if(vName.equals(volumeName)){
+					sk.printResult(0, true, "Detaching...");
+					uc.detachVolume(c, v.getId());
+				}
+			}
+		}
+		sk.printTitle(0, "End");
+	}
+	
+	public void showVolumeAttachment(String profile) throws NumberFormatException, IOException{
+		h.help(profile, "<profile>");
+		sk.printTitle(0, "Instance and volume attachment in profile compartment");
+		Compute c = Client.getComputeClient(profile);
+		Blockstorage bs = Client.getBlockstorageClient(profile);
+		UtilCompute uc = new UtilCompute();
+		UtilBlockStorage ubs = new UtilBlockStorage();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		List<Instance> instances = uc.getAllInstance(c, compartmentId);
+		for(Instance i:instances){
+			if(!i.getLifecycleState().equals(Instance.LifecycleState.Terminated)){
+				List<VolumeAttachment> va = uc.getVolumeAttachment(c, i, compartmentId);
+				sk.printResult(0,true,"Instance: "+i.getDisplayName()+", "+i.getAvailabilityDomain());
+				for(VolumeAttachment v:va){
+					if(!v.getLifecycleState().equals(VolumeAttachment.LifecycleState.Detached)){
+						Volume vol = ubs.getVolumeById(bs, v.getVolumeId());
+						sk.printResult(1, true, v.getDisplayName()+", "+vol.getDisplayName()+", "+vol.getSizeInMBs()/1024+"GB");
+					}
+				}
+			}
+		}
+		sk.printTitle(0, "End");
+	}
+	
+	/**
+	 * Show all volumes that vm can utilize in subnet scope.
+	 * @param vcnName
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
+	public void showVolume(String vcnName, String profile) throws NumberFormatException, IOException{
+		h.help(vcnName, "<vcn-name> <profile>");
+		sk.printTitle(0, "All volumes that subnets can use. Same volume can be showed MULTIPLE times if you have MULTIPLE subnets in ONE AD!");
+		Compute c = Client.getComputeClient(profile);
+		Blockstorage bs = Client.getBlockstorageClient(profile);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilCompute uc = new UtilCompute();
+		UtilBlockStorage ubs = new UtilBlockStorage();
+		UtilNetwork un = new UtilNetwork();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		List<Subnet> subnets = un.getSubnetInVcn(vn, compartmentId, vcnName);
+		for(Subnet s:subnets){
+			System.out.println();
+			sk.printResult(0,true,"Subnet: "+s.getDisplayName()+", "+s.getCidrBlock()+", "+s.getAvailabilityDomain());
+			System.out.println();
+			List<Volume> vols = ubs.getAllVolume(bs, s.getAvailabilityDomain(), compartmentId);
+			for(Volume v:vols){
+				if(!v.getLifecycleState().equals(Volume.LifecycleState.Terminated)){
+					sk.printResult(1, true, v.getDisplayName()+", "+v.getSizeInMBs()/1024+"GB, "+v.getLifecycleState().toString());
+				}
+			}
+		}
+		sk.printTitle(0, "End");
+	}
 	
 	private void showAction(Class clazz){
 		List<String> skip = new ArrayList<String>();
@@ -689,6 +773,20 @@ public class Jiu {
 	
 	// CREATOR //
 	
+	public void createVolumeInSubnet(String name, String vcnName, String subnetName, String sizeGB, String profile) throws Exception{
+		h.help(name, "<name> <vcn-name> <subnet-name> <size-in-GB> <profile>");
+		Blockstorage bs = Client.getBlockstorageClient(profile);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilBlockStorage ubs = new UtilBlockStorage();
+		UtilNetwork un = new UtilNetwork();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		Subnet sn = un.getSubnetByName(vn, subnetName, un.getVcnIdByName(vn, vcnName, compartmentId), compartmentId);
+		Volume v = ubs.createVolume(bs, name, sn.getAvailabilityDomain(), Long.valueOf(sizeGB), compartmentId);
+		h.waitForVolumeStatus(bs, v.getId(), Volume.LifecycleState.Available, "Creating volume", false);
+		
+		this.showVolume(vcnName, profile);
+	}
+	
 	/**
 	 * Launch a new VM instance.
 	 * @param name
@@ -834,6 +932,42 @@ public class Jiu {
 	}
 	
 	// SETUP //
+	
+	public void attachVolume(String volumeName, String instanceName, String profile) throws NumberFormatException, IOException{
+		h.help(volumeName, "<volume-name> <instance-name> <profile>");
+		sk.printTitle(0, "Attach volume "+volumeName+" to "+instanceName);
+		Compute c = Client.getComputeClient(profile);
+		Blockstorage bs = Client.getBlockstorageClient(profile);
+		UtilCompute uc = new UtilCompute();
+		UtilBlockStorage ubs = new UtilBlockStorage();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		Instance i = uc.getInstanceByName(c, instanceName, compartmentId);
+		Volume v = ubs.getVolumeByName(bs, volumeName, i.getAvailabilityDomain(), compartmentId);
+		IScsiVolumeAttachment va = uc.attachVolumeIscsi(c, volumeName+"-"+instanceName, i.getId(), v.getId());
+		String aid = va.getId();
+		VolumeAttachment check = null;
+		while(true){
+			h.wait(1000);
+			check = c.getVolumeAttachment(GetVolumeAttachmentRequest.builder().volumeAttachmentId(aid).build()).getVolumeAttachment();
+			sk.printResult(0,true,check.getLifecycleState().getValue());
+			if(check.getLifecycleState().equals(VolumeAttachment.LifecycleState.Attached)){
+				break;
+			}
+		}
+		va = (IScsiVolumeAttachment) c.getVolumeAttachment(GetVolumeAttachmentRequest.builder().volumeAttachmentId(aid).build()).getVolumeAttachment();
+		String iqn = va.getIqn();
+		String ipv4 = va.getIpv4();
+		String port = va.getPort()==null?"3260":va.getPort().toString();
+		StringBuffer script = new StringBuffer();
+		script.append("sudo iscsiadm -m node -o new -T "+iqn+" -p "+ipv4+":"+port+"\n");
+		script.append("sudo iscsiadm -m node -T "+iqn+" -o update -n node.startup -v automatic\n");
+		script.append("sudo iscsiadm -m node -T "+iqn+" -p "+ipv4+":"+port+" -l\n");
+		String output = new String(script);
+		sk.printTitle(0,"Run following scripts on instance "+instanceName+" to connect the volume");
+		System.out.println(output);
+	}
+	
+	
 	/**
 	 * Send actions to vm instance.
 	 * @param name
@@ -1246,6 +1380,18 @@ public class Jiu {
 	}
 	
 	// DESTROYER //
+	
+	public void destroyVolume(String volumeName, String availabilityDomain, String profile) throws Exception{
+		h.help(volumeName, "<volume-name> <availability-domain> <profile>");
+		sk.printTitle(0, "Delete volume named "+volumeName);
+		String compartmentId = Config.getMyCompartmentId(profile);
+		Blockstorage bs = Client.getBlockstorageClient(profile);
+		UtilBlockStorage ubs = new UtilBlockStorage();
+		Volume v = ubs.getVolumeByName(bs, volumeName, availabilityDomain, compartmentId);
+		ubs.killVolumeById(bs, v.getId());
+		h.waitForVolumeStatus(bs, v.getId(), Volume.LifecycleState.Terminated, "Removing volume", true);
+		sk.printTitle(0, "End");
+	}
 	
 	public void destroyLbByName(String lbName, String profile) throws Exception{
 		h.help(lbName, "<load-balancer-name> <profile>");

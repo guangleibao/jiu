@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
+import com.oracle.bmc.core.Blockstorage;
+import com.oracle.bmc.core.BlockstorageWaiters;
 import com.oracle.bmc.core.Compute;
 import com.oracle.bmc.core.ComputeWaiters;
 import com.oracle.bmc.core.VirtualNetwork;
@@ -24,6 +26,8 @@ import com.oracle.bmc.core.model.RouteTable;
 import com.oracle.bmc.core.model.SecurityList;
 import com.oracle.bmc.core.model.Subnet;
 import com.oracle.bmc.core.model.Vcn;
+import com.oracle.bmc.core.model.Volume;
+import com.oracle.bmc.core.model.VolumeAttachment;
 import com.oracle.bmc.core.requests.GetDhcpOptionsRequest;
 import com.oracle.bmc.core.requests.GetInstanceRequest;
 import com.oracle.bmc.core.requests.GetInternetGatewayRequest;
@@ -31,6 +35,8 @@ import com.oracle.bmc.core.requests.GetRouteTableRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
 import com.oracle.bmc.core.requests.GetSubnetRequest;
 import com.oracle.bmc.core.requests.GetVcnRequest;
+import com.oracle.bmc.core.requests.GetVolumeAttachmentRequest;
+import com.oracle.bmc.core.requests.GetVolumeRequest;
 import com.oracle.bmc.core.responses.GetDhcpOptionsResponse;
 import com.oracle.bmc.core.responses.GetInstanceResponse;
 import com.oracle.bmc.core.responses.GetInternetGatewayResponse;
@@ -38,6 +44,8 @@ import com.oracle.bmc.core.responses.GetRouteTableResponse;
 import com.oracle.bmc.core.responses.GetSecurityListResponse;
 import com.oracle.bmc.core.responses.GetSubnetResponse;
 import com.oracle.bmc.core.responses.GetVcnResponse;
+import com.oracle.bmc.core.responses.GetVolumeAttachmentResponse;
+import com.oracle.bmc.core.responses.GetVolumeResponse;
 import com.oracle.bmc.identity.Identity;
 import com.oracle.bmc.identity.IdentityWaiters;
 import com.oracle.bmc.identity.model.Compartment;
@@ -210,6 +218,15 @@ public class Helper {
 	
 	/* waitForXxxStatus */
 	
+	public GetVolumeResponse waitForVolumeStatus(Blockstorage bs, String volId, Volume.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
+		char mark = tearDown?Helper.REMOVING:Helper.BUILDING;
+		BlockstorageWaiters cw = bs.getWaiters();
+		this.processingV2(waitMessage+" ... ");
+		GetVolumeResponse res = cw.forVolume(GetVolumeRequest.builder().volumeId(volId).build(), state).execute();
+		this.done(mark);
+		return res;
+	}
+
 	
 	public GetWorkRequestResponse waitForWorkReqeustStatus(LoadBalancer lb, String workRequestId, String waitMessage, boolean tearDown) throws Exception{
 		char mark = tearDown?Helper.REMOVING:Helper.BUILDING;

@@ -5,6 +5,8 @@ import java.io.IOException;
 import com.oracle.bmc.Region;
 import com.oracle.bmc.audit.Audit;
 import com.oracle.bmc.audit.AuditClient;
+import com.oracle.bmc.core.Blockstorage;
+import com.oracle.bmc.core.BlockstorageClient;
 import com.oracle.bmc.core.Compute;
 import com.oracle.bmc.core.ComputeClient;
 import com.oracle.bmc.core.VirtualNetwork;
@@ -22,6 +24,19 @@ import com.oracle.bmc.objectstorage.ObjectStorageClient;
  *
  */
 public class Client {
+	
+	/**
+	 * Block storage client.
+	 * @param profile
+	 * @return
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
+	public static Blockstorage getBlockstorageClient(String profile) throws NumberFormatException, IOException{
+		Blockstorage bs = new BlockstorageClient(Config.getAuthProvider(profile.toUpperCase()), Config.getClientConfig(profile));
+		bs.setRegion(Region.fromRegionId(Config.getConfigFileReader(profile.toUpperCase()).get("region")));
+		return bs;
+	}
 	
 	/**
 	 * Load balancer client.
