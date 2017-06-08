@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -232,13 +233,26 @@ public class Jiu {
 		String compartmentId = Config.getMyCompartmentId(profile);
 		List<Subnet> subnets = un.getSubnetInVcn(vn, compartmentId, vcnName);
 		for(Subnet s:subnets){
+			Collection<Instance> instances =  un.getInstanceBySubnetReverseState(vn, c, s, Instance.LifecycleState.Terminated).values();
 			System.out.println();
 			sk.printResult(0,true,"Subnet: "+s.getDisplayName()+", "+s.getCidrBlock()+", "+s.getAvailabilityDomain());
 			System.out.println();
 			List<Volume> vols = ubs.getAllVolume(bs, s.getAvailabilityDomain(), compartmentId);
 			for(Volume v:vols){
+				String status = "not attached here";
 				if(!v.getLifecycleState().equals(Volume.LifecycleState.Terminated)){
-					sk.printResult(1, true, v.getDisplayName()+", "+v.getSizeInMBs()/1024+"GB, "+v.getLifecycleState().toString());
+					for(Instance i:instances){
+						List<VolumeAttachment> vas = uc.getVolumeAttachment(c, i, compartmentId);
+						for(VolumeAttachment t:vas){
+							if(!t.getLifecycleState().equals(VolumeAttachment.LifecycleState.Detached)
+									&& t.getVolumeId().equals(v.getId())
+									){
+								status = "attached by instance in this subnet";
+								break;
+							}
+						}
+					}
+					sk.printResult(1, true, v.getDisplayName()+", "+v.getSizeInMBs()/1024+"GB, "+v.getLifecycleState().toString()+", "+status);
 				}
 			}
 		}
@@ -1520,7 +1534,7 @@ public class Jiu {
 	}
 	
 	/**
-	 * REST call.
+	 * REST call. 
 	 * @param method, lowercase
 	 * @param apiVersion
 	 * @param path
@@ -1530,6 +1544,7 @@ public class Jiu {
 	 * @throws IOException
 	 */
 	//TODO
+	/*
 	public void restCall(String method, String apiVersion, String slashPath, String profile) throws IOException{
 		h.help(method, "<method> <api-version> <slash-separated-path> <profile>");
 		sk.printTitle(0, "/"+apiVersion+"/"+slashPath);
@@ -1538,7 +1553,7 @@ public class Jiu {
 		System.out.println(ret[0]);
 		sk.printResult(0, true, "Response Body:");
 		System.out.println(ret[1]);
-	}
+	}*/
 	
 	/**
 	 * The real program.

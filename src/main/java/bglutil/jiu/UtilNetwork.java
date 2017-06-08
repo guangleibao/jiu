@@ -222,6 +222,23 @@ public class UtilNetwork extends UtilMain {
 		return vnicToInstance;
 	}
 	
+	public Hashtable<Vnic,Instance> getInstanceBySubnetReverseState(VirtualNetwork vn, Compute c, Subnet subnet, Instance.LifecycleState state){
+		Hashtable<Vnic,Instance> vnicToInstance = new Hashtable<Vnic,Instance>();
+		UtilCompute uc = new UtilCompute();
+		List<Instance> instances = c.listInstances(ListInstancesRequest.builder().compartmentId(subnet.getCompartmentId()).build()).getItems();
+		for(Instance i:instances){
+			if(!i.getLifecycleState().equals(state)){
+				List<Vnic> vnics = uc.getVnicByInstanceId(c, vn, i.getId(), subnet.getCompartmentId());
+				for(Vnic v:vnics){
+					if(v.getSubnetId().equals(subnet.getId())){
+						vnicToInstance.put(v, i);
+					}
+				}
+			}
+		}
+		return vnicToInstance;
+	}
+	
 	/**
 	 * Print rules for security list.
 	 * @param sl
