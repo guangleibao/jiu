@@ -204,6 +204,8 @@ public class Jiu {
 					if(!v.getLifecycleState().equals(VolumeAttachment.LifecycleState.Detached)){
 						Volume vol = ubs.getVolumeById(bs, v.getVolumeId());
 						sk.printResult(1, true, v.getDisplayName()+", "+vol.getDisplayName()+", "+vol.getSizeInMBs()/1024+"GB");
+						IScsiVolumeAttachment iv = (IScsiVolumeAttachment) v;
+						this.printISCSIInfo(iv);
 					}
 				}
 			}
@@ -954,7 +956,12 @@ public class Jiu {
 				break;
 			}
 		}
+		sk.printTitle(0,"Run following scripts on instance "+instanceName+" to connect the volume");
 		va = (IScsiVolumeAttachment) c.getVolumeAttachment(GetVolumeAttachmentRequest.builder().volumeAttachmentId(aid).build()).getVolumeAttachment();
+		this.printISCSIInfo(va);
+	}
+	
+	private void printISCSIInfo(IScsiVolumeAttachment va){
 		String iqn = va.getIqn();
 		String ipv4 = va.getIpv4();
 		String port = va.getPort()==null?"3260":va.getPort().toString();
@@ -963,7 +970,6 @@ public class Jiu {
 		script.append("sudo iscsiadm -m node -T "+iqn+" -o update -n node.startup -v automatic\n");
 		script.append("sudo iscsiadm -m node -T "+iqn+" -p "+ipv4+":"+port+" -l\n");
 		String output = new String(script);
-		sk.printTitle(0,"Run following scripts on instance "+instanceName+" to connect the volume");
 		System.out.println(output);
 	}
 	
