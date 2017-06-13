@@ -4,13 +4,10 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.math.BigDecimal;
-import java.util.GregorianCalendar;
 import java.util.Map;
 
 import javax.annotation.Priority;
 import javax.ws.rs.Priorities;
-import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.client.ClientRequestContext;
 import javax.ws.rs.client.ClientRequestFilter;
@@ -19,8 +16,6 @@ import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
-
-import org.glassfish.jersey.jackson.JacksonFeature;
 
 import com.google.common.net.UrlEscapers;
 import com.oracle.bmc.http.signing.DefaultRequestSigner;
@@ -37,6 +32,7 @@ import lombok.RequiredArgsConstructor;
  */
 public class UtilMain {
 	
+	// The knives.
 	protected Speaker sk;
 	protected Helper h;
 	
@@ -53,10 +49,12 @@ public class UtilMain {
 			this.requestSigner = rs;
 		}
 		
+		@SuppressWarnings("unused")
 		private RequestSigner getRequestSigner(){
 			return this.requestSigner;
 		}
 		
+		@SuppressWarnings("unused")
 		private void setRequestSigner(RequestSigner rs){
 			this.requestSigner = rs;
 		}
@@ -78,7 +76,16 @@ public class UtilMain {
         }
     }
 	
-	// TODO parameters.
+	// TODO
+	/**
+	 * Experiment. Do not use.
+	 * @param method
+	 * @param apiVersion
+	 * @param slashPath
+	 * @param profile
+	 * @return
+	 * @throws IOException
+	 */
 	public static String[] restCall(String method, String apiVersion, String[] slashPath, String profile) throws IOException{
 		String[] ret = new String[2];
 		RequestSigner requestSigner = DefaultRequestSigner.createRequestSigner(Config.getAuthProvider(profile));
@@ -114,6 +121,18 @@ public class UtilMain {
         }
 	}
 	
+	// TODO
+	/**
+	 * Experiment, do NOT use.
+	 * @param endponit
+	 * @param method
+	 * @param apiVersion
+	 * @param slashPath
+	 * @param paramKV
+	 * @param profile
+	 * @return
+	 * @throws IOException
+	 */
 	public static String[] restCallv2(String endponit, String method, String apiVersion, String[] slashPath, Map<String,String> paramKV, String profile) throws IOException{
 		String[] ret = new String[2];
 		String endpoint = "https://iaas.us-phoenix-1.oraclecloud.com";
@@ -139,7 +158,6 @@ public class UtilMain {
         	response = ib.get();
         }
  
-        
         MultivaluedMap<String, Object> responseHeaders = response.getHeaders();
         ret[0]=responseHeaders.toString();
         InputStream responseBody = (InputStream) response.getEntity();
@@ -153,19 +171,5 @@ public class UtilMain {
             ret[1] = jsonBody.toString();
             return ret;
         }
-	}
-	
-	public static String[] restCalltest(){
-		String REST_SERVICE_URL = "http://localhost:8080/tutorial/rs/book";
-		 
-		String TITLE = "One big book";
-		BigDecimal PRICE = new BigDecimal("20.0");
-		GregorianCalendar PUBLISHED = new GregorianCalendar(2013, 12, 24);
-		 
-		Client client = ClientBuilder.newClient().register(JacksonFeature.class);
-		
-		
-		
-		return new String[]{"A","B"};
 	}
 }

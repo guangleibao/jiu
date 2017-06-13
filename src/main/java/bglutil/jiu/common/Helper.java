@@ -7,9 +7,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
 import java.util.Base64;
-import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -27,7 +25,6 @@ import com.oracle.bmc.core.model.SecurityList;
 import com.oracle.bmc.core.model.Subnet;
 import com.oracle.bmc.core.model.Vcn;
 import com.oracle.bmc.core.model.Volume;
-import com.oracle.bmc.core.model.VolumeAttachment;
 import com.oracle.bmc.core.requests.GetDhcpOptionsRequest;
 import com.oracle.bmc.core.requests.GetInstanceRequest;
 import com.oracle.bmc.core.requests.GetInternetGatewayRequest;
@@ -35,7 +32,6 @@ import com.oracle.bmc.core.requests.GetRouteTableRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
 import com.oracle.bmc.core.requests.GetSubnetRequest;
 import com.oracle.bmc.core.requests.GetVcnRequest;
-import com.oracle.bmc.core.requests.GetVolumeAttachmentRequest;
 import com.oracle.bmc.core.requests.GetVolumeRequest;
 import com.oracle.bmc.core.responses.GetDhcpOptionsResponse;
 import com.oracle.bmc.core.responses.GetInstanceResponse;
@@ -44,7 +40,6 @@ import com.oracle.bmc.core.responses.GetRouteTableResponse;
 import com.oracle.bmc.core.responses.GetSecurityListResponse;
 import com.oracle.bmc.core.responses.GetSubnetResponse;
 import com.oracle.bmc.core.responses.GetVcnResponse;
-import com.oracle.bmc.core.responses.GetVolumeAttachmentResponse;
 import com.oracle.bmc.core.responses.GetVolumeResponse;
 import com.oracle.bmc.identity.Identity;
 import com.oracle.bmc.identity.IdentityWaiters;
@@ -96,32 +91,40 @@ public class Helper {
 		return Helper.LE+" "+name+Helper.RE;
 	}
 	
+	/**
+	 * Encode plain text to base64.
+	 * @param plain
+	 * @return
+	 */
 	public String base64Encode(String plain){
 		byte[] b = plain.getBytes();
 		String base64 = null;
 		if(b!=null){
-			//base64 = Base64.getUrlEncoder().encodeToString(b);
-			//base64 = Base64.getMimeEncoder().encodeToString(b);
 			base64 = Base64.getEncoder().encodeToString(b);
 		}
 		return base64;
 	}
 	
+	/**
+	 * Decode text from base64.
+	 * @param base64
+	 * @return
+	 */
 	public String base64Decode(String base64){
 		byte[] b = null;
 		String plain = null;
 		if(base64 != null){
-			//try {
-				//b = Base64.getUrlDecoder().decode(base64);
 				b = Base64.getDecoder().decode(base64);
 				plain = new String(b);
-			//} catch (IOException e) {
-			//	e.printStackTrace();
-			//}
 		}
 		return plain;
 	}
 	
+	/**
+	 * Encode file content into base64.
+	 * @param file
+	 * @return
+	 */
 	public String base64EncodeFromFile(String file){
 		String ls = System.getProperty("line.separator");
 		StringBuffer sb = new StringBuffer();
@@ -146,7 +149,7 @@ public class Helper {
 			throw new RuntimeException("File Content is NULL!!");
 		}
 		String base64 = this.base64Encode(script);
-		sk.printTitle(0,"Ecoded:");
+		sk.printTitle(0,"Encoded:");
 		System.out.println(base64);
 		return base64;
 	}
@@ -321,9 +324,12 @@ public class Helper {
 	
 	/* waitForXxxStatus */
 	
-	
-	
-	public Set<String> getPublicMethodName(Class clazz){
+	/**
+	 * Get all public method names from a class.
+	 * @param clazz
+	 * @return
+	 */
+	public Set<String> getPublicMethodName(Class<?> clazz){
 		Method[] allMethods = clazz.getDeclaredMethods();
 		Set<String> methods = new TreeSet<String>();
 		for (Method m : allMethods) {
@@ -344,7 +350,12 @@ public class Helper {
 		ip.start();
 		return ip;
 	}
-
+	
+	/**
+	 * Util class for display a in-progress status.
+	 * @author guanglei
+	 *
+	 */
 	class InProgress extends Thread {
 
 		private String s;

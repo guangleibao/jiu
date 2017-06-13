@@ -21,12 +21,10 @@ import com.oracle.bmc.identity.model.AvailabilityDomain;
  * 
  * All information surround a subnet.
  * fact: sn.
- * demension: others.
- * 
- * 
- * @author guanglei
- *
+ * dimension: others.
+ * Deprecated as performance is NOT good.
  */
+@Deprecated
 public class SubnetAsset {
 	
 	private Subnet sn;

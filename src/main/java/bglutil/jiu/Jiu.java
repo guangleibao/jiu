@@ -76,6 +76,19 @@ import com.oracle.bmc.loadbalancer.requests.GetLoadBalancerRequest;
 import com.oracle.bmc.loadbalancer.requests.ListLoadBalancersRequest;
 import com.oracle.bmc.objectstorage.ObjectStorage;
 import com.oracle.bmc.objectstorage.ObjectStorageClient;
+import com.oracle.bmc.objectstorage.model.Bucket;
+import com.oracle.bmc.objectstorage.model.CreateBucketDetails;
+import com.oracle.bmc.objectstorage.model.CreatePreauthenticatedRequestDetails;
+import com.oracle.bmc.objectstorage.model.ObjectSummary;
+import com.oracle.bmc.objectstorage.model.PreauthenticatedRequest;
+import com.oracle.bmc.objectstorage.model.PreauthenticatedRequestSummary;
+import com.oracle.bmc.objectstorage.model.UpdateBucketDetails;
+import com.oracle.bmc.objectstorage.model.CreateBucketDetails.PublicAccessType;
+import com.oracle.bmc.objectstorage.requests.CreateBucketRequest;
+import com.oracle.bmc.objectstorage.requests.ListObjectsRequest;
+import com.oracle.bmc.objectstorage.requests.ListPreauthenticatedRequestsRequest;
+import com.oracle.bmc.objectstorage.responses.ListObjectsResponse;
+import com.oracle.bmc.objectstorage.responses.ListPreauthenticatedRequestsResponse;
 import com.oracle.bmc.objectstorage.transfer.UploadManager.UploadResponse;
 import com.oracle.bmc.ClientConfiguration;
 import com.oracle.bmc.Region;
@@ -108,6 +121,136 @@ public class Jiu {
 	
 	// OBJECT STORAGE //
 	
+	public void removePar(String bucketName, String parId, String profile) throws NumberFormatException, IOException{
+		h.help(bucketName, "<bucketName> <par-id> <profile>");
+		sk.printTitle(0, "Delete PAR "+parId);
+		ObjectStorage os = Client.getObjectStorageClient(profile);
+		UtilObjectStorage uos = new UtilObjectStorage();
+		uos.deletePar(os, bucketName, parId);
+		sk.printTitle(0, "End");
+	}
+	
+	public void showPar(String bucketName, String profile) throws Exception{
+		h.help(bucketName, "<bucketName> <profile>");
+		sk.printTitle(0, "Purge bucket "+bucketName);
+		ObjectStorage os = Client.getObjectStorageClient(profile);
+		UtilObjectStorage uos = new UtilObjectStorage();
+		uos.printAllPARsInBucket(os, bucketName, profile);
+		sk.printTitle(0, "End");
+	}
+	
+	public void purgeBucket(String bucketName, String profile) throws NumberFormatException, IOException{
+		h.help(bucketName, "<bucketName> <profile>");
+		sk.printTitle(0, "Purge bucket "+bucketName);
+		ObjectStorage os = Client.getObjectStorageClient(profile);
+		UtilObjectStorage uos = new UtilObjectStorage();
+		 sk.printResult(0, true, "purging bucket "+bucketName);
+		 String namespace = uos.getNamespace(os);
+		com.oracle.bmc.objectstorage.requests.ListObjectsRequest.Builder listObjectsBuilder = ListObjectsRequest.builder().namespaceName(namespace).bucketName(bucketName);
+		String nextToken = null;
+        do {
+            listObjectsBuilder.start(nextToken);
+            ListObjectsResponse listObjectsResponse =
+                    os.listObjects(listObjectsBuilder.build());
+            
+            for (ObjectSummary object : listObjectsResponse.getListObjects().getObjects()) {
+               sk.printResult(0, true, "deleting object "+object.getName());
+               uos.deleteObject(os, bucketName, object.getName());
+            }
+            nextToken = listObjectsResponse.getListObjects().getNextStartWith();
+        } while (nextToken != null);
+        com.oracle.bmc.objectstorage.requests.ListPreauthenticatedRequestsRequest.Builder listPARsBuilder = ListPreauthenticatedRequestsRequest
+				.builder().namespaceName(namespace).bucketName(bucketName);
+		ListPreauthenticatedRequestsResponse listPreauthenticatedRequestsResponse = os
+				.listPreauthenticatedRequests(listPARsBuilder.build());
+		for (PreauthenticatedRequestSummary summary : listPreauthenticatedRequestsResponse.getItems()) {
+			 sk.printResult(0, true, "deleting par "+summary.getId());
+			uos.deletePar(os, bucketName, summary.getId());
+		}
+		sk.printTitle(0, "End");
+	}
+	
+	public void deleteBucketForce(String bucketName, String profile) throws NumberFormatException, IOException{
+		h.help(bucketName, "<bucketName> <profile>");
+		sk.printTitle(0, "Cascade delete bucket "+bucketName);
+		ObjectStorage os = Client.getObjectStorageClient(profile);
+		UtilObjectStorage uos = new UtilObjectStorage();
+		this.purgeBucket(bucketName, profile);
+		uos.deleteBucket(os, bucketName);
+		sk.printResult(0, true, "deleting bucket "+bucketName);
+		sk.printTitle(0, "End");
+	}
+	
+	public void deleteBucket(String bucketName, String profile) throws NumberFormatException, IOException{
+		h.help(bucketName, "<bucketName> <profile>");
+		sk.printTitle(0, "Delete bucket "+bucketName);
+		ObjectStorage os = Client.getObjectStorageClient(profile);
+		UtilObjectStorage uos = new UtilObjectStorage();
+		uos.deleteBucket(os, bucketName);
+		sk.printTitle(0, "End");
+	}
+	
+	public void makeBucketPublic(String bucketName, String profile) throws NumberFormatException, IOException{
+		h.help(bucketName, "<bucketName> <profile>");
+		sk.printTitle(0, "Change bucket "+bucketName+" to public");
+		ObjectStorage os = Client.getObjectStorageClient(profile);
+		UtilObjectStorage uos = new UtilObjectStorage();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		uos.changeBucketPublicAccess(os, bucketName, UpdateBucketDetails.PublicAccessType.ObjectRead, compartmentId);
+		sk.printTitle(0, "End");
+	}
+	
+	public void makeBucketPrivate(String bucketName, String profile) throws NumberFormatException, IOException{
+		h.help(bucketName, "<bucketName> <profile>");
+		sk.printTitle(0, "Change bucket "+bucketName+" to private");
+		ObjectStorage os = Client.getObjectStorageClient(profile);
+		UtilObjectStorage uos = new UtilObjectStorage();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		uos.changeBucketPublicAccess(os, bucketName, UpdateBucketDetails.PublicAccessType.NoPublicAccess, compartmentId);
+		sk.printTitle(0, "End");
+	}
+	
+	public void createParGet(String bucketName, String objectName, String hours, String profile) throws NumberFormatException, IOException{
+		h.help(bucketName, "<bucketName> <objectName> <hours> <profile>");
+		ObjectStorage os = Client.getObjectStorageClient(profile);
+		UtilObjectStorage uos = new UtilObjectStorage();
+		String regionCode = Config.getConfigFileReader(profile).get("region");
+		sk.printTitle(0, "Create PAR for GET");
+		PreauthenticatedRequest par = uos.generatePreAuthenticatedReqeust(os, bucketName, objectName, bucketName+"-"+objectName+"-JiuGet", 
+				CreatePreauthenticatedRequestDetails.AccessType.ObjectRead, Long.valueOf(hours));
+		sk.printResult(0, true, "PAR Access Type: "+par.getAccessType().toString());
+		sk.printResult(0, true, "PAR Name: "+par.getName());
+		sk.printResult(0, true, "PAR ID: "+par.getId());
+		sk.printResult(0, true, "PAR Expire: "+par.getTimeExpires().toString());
+		System.out.println("https://objectstorage."+regionCode+".oraclecloud.com"+par.getAccessUri());
+		sk.printTitle(0, "End");
+	}
+	
+	/**
+	 * Show all buckets.
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void showBucket(String profile) throws Exception{
+		h.help(profile, "<profile>");
+		ObjectStorage os = Client.getObjectStorageClient(profile);
+		UtilObjectStorage uos = new UtilObjectStorage();
+		sk.printTitle(0, "All Buckets by profile "+profile);
+		uos.printAllBuckets(os, profile);
+		sk.printTitle(0, "End");
+	}
+	
+	public void createBucket(String bucketName, String profile) throws Exception{
+		h.help(bucketName, "<bucketName> <profile>");
+		ObjectStorage os = Client.getObjectStorageClient(profile);
+		UtilObjectStorage uos = new UtilObjectStorage();
+		sk.printTitle(0, "Create bucket named "+bucketName);
+		String compartmentId = Config.getMyCompartmentId(profile);
+		Bucket b = uos.createBucket(os, bucketName, compartmentId);
+		this.showBucket(profile);
+		sk.printTitle(0, "End");
+	}
+	
 	/**
 	 * List all objects under a bucket.
 	 * @param bucketName
@@ -133,11 +276,11 @@ public class Jiu {
 	 * @throws IOException
 	 * @throws InterruptedException
 	 */
-	public void simpleUpload(String bucketName, String objectName, String filePath, String profile) throws NumberFormatException, IOException, InterruptedException{
+	public void upload(String bucketName, String objectName, String filePath, String profile) throws NumberFormatException, IOException, InterruptedException{
 		h.help(bucketName, "<bucket> <object> <file> <profile>");
 		ObjectStorage os = Client.getObjectStorageClient(profile);
 		UtilObjectStorage uos = new UtilObjectStorage();
-		h.processingV2("Uploading ... ");
+		h.processingV2("Uploading "+filePath+" to "+objectName);
 		UploadResponse ur = uos.upload(os, bucketName, objectName, new File(filePath), null, null, null, null);
 		h.done(Helper.BUILDING);
 		sk.printResult(0, true, "md5: "+ur.getContentMd5());
@@ -145,7 +288,7 @@ public class Jiu {
 	}
 	
 	/**
-	 * Download a from Object Storage
+	 * ObjectStorage. Download a from Object Storage
 	 * @param bucketName
 	 * @param objectName
 	 * @param filePath
@@ -154,7 +297,7 @@ public class Jiu {
 	 * @throws IOException
 	 * @throws InterruptedException
 	 */
-	public void simpleDownload(String bucketName, String objectName, String filePath, String profile) throws NumberFormatException, IOException, InterruptedException{
+	public void download(String bucketName, String objectName, String filePath, String profile) throws NumberFormatException, IOException, InterruptedException{
 		h.help(bucketName, "<bucket> <object> <file> <profile>");
 		ObjectStorage os = Client.getObjectStorageClient(profile);
 		UtilObjectStorage uos = new UtilObjectStorage();
@@ -163,8 +306,17 @@ public class Jiu {
 		h.done(Helper.BUILDING);
 	}
 	
-	// SHOW //
 	
+	// COMPUTE //
+	
+	/**
+	 * Compute. Detach a block volume from instance.
+	 * @param volumeName
+	 * @param instanceName
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
 	public void detachVolume(String volumeName, String instanceName, String profile) throws NumberFormatException, IOException{
 		h.help(volumeName, "<volume-name> <instance-name> <profile>");
 		sk.printTitle(0, "Detach "+volumeName+" from "+instanceName);
@@ -187,6 +339,10 @@ public class Jiu {
 		}
 		sk.printTitle(0, "End");
 	}
+	
+	// SHOW //
+	
+
 	
 	public void showVolumeAttachment(String profile) throws NumberFormatException, IOException{
 		h.help(profile, "<profile>");
@@ -521,20 +677,6 @@ public class Jiu {
 	}
 	
 	/**
-	 * Show all buckets.
-	 * @param profile
-	 * @throws Exception
-	 */
-	public void showBucket(String profile) throws Exception{
-		h.help(profile, "<profile>");
-		ObjectStorage os = Client.getObjectStorageClient(profile);
-		UtilObjectStorage uos = new UtilObjectStorage();
-		sk.printTitle(0, "All Buckets by profile "+profile);
-		uos.printAllBuckets(os, profile);
-		sk.printTitle(0, "End");
-	}
-	
-	/**
 	 * Show rules for seclist.
 	 * @param secListOcid
 	 * @param profile
@@ -650,7 +792,7 @@ public class Jiu {
 					sk.printResult(2, true, "SecList: ("+(++sli)+") "+h.objectName(va.getSecLists().get(slId).getDisplayName()));
 				}
 				// Instance detail
-				Map<Vnic,Instance> instances = un.getInstanceBySubnet(vn, c, s, Instance.LifecycleState.Running);
+				Map<Vnic,Instance> instances = un.getInstanceBySubnetReverseState(vn, c, s, Instance.LifecycleState.Terminated);
 				for(Vnic nic:instances.keySet()){
 					String dn = instances.get(nic).getDisplayName();
 					sk.printResult(2, true, (dn.toLowerCase().contains("bastion")?Helper.FIST:Helper.STAR)+"  Machine: "
@@ -814,7 +956,7 @@ public class Jiu {
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void createVmInstance(String name, String vcnName, String subnetName, String imageName, String shapeName, String userdataFilePath, String profile) throws Exception{
+	public void createInstance(String name, String vcnName, String subnetName, String imageName, String shapeName, String userdataFilePath, String profile) throws Exception{
 		h.help(name, "<name> <vcn-name> <subnet-name> <image-name> <shape-name> <user-data-file-path> <profile>");
 		sk.printTitle(0, "Creating VM");
 		Compute c = Client.getComputeClient(profile);
@@ -1249,7 +1391,7 @@ public class Jiu {
 		List<String> nosqlSecLists = new ArrayList<String>();
 		nosqlSecLists.add(nosqlSecList.getId());
 		// Public LoadBalancer SecList
-		List<IngressSecurityRule> irPublicLoadBalancer = un.getPublicLoadBalancerIngressSecurityRules(new int[]{80,443});
+		List<IngressSecurityRule> irPublicLoadBalancer = un.getPublicLoadBalancerIngressSecurityRules(new int[]{80,443,22});
 		SecurityList publicLoadBalancerSecList = un.createSecList(vn, compartmentId, vcn.getId(), prefix+"seclist-loadbalancer-public", irPublicLoadBalancer, erAllowAll);
 		List<String> publicLoadBalancerSecLists = new ArrayList<String>();
 		publicLoadBalancerSecLists.add(publicLoadBalancerSecList.getId());

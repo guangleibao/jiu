@@ -1,7 +1,6 @@
 package bglutil.jiu.common;
 
 import java.util.Hashtable;
-import java.util.List;
 import java.util.Map;
 
 import com.oracle.bmc.core.VirtualNetwork;
@@ -28,7 +27,7 @@ import com.oracle.bmc.identity.Identity;
 /**
  * All assets within a VCN.
  * fact: VCN.
- * demension: others.
+ * dimension: others.
  * 
  * @author guanglei
  *
@@ -39,6 +38,14 @@ public class VcnAsset {
 		super();
 	}
 	
+	/**
+	 * Make a VCN representation.
+	 * @param vn
+	 * @param id
+	 * @param vcnId
+	 * @param compartmentId
+	 * @return
+	 */
 	public static VcnAsset getInstance(VirtualNetwork vn, Identity id, String vcnId, String compartmentId){
 		VcnAsset va = new VcnAsset();
 		va.vcn = vn.getVcn(GetVcnRequest.builder().vcnId(vcnId).build()).getVcn();

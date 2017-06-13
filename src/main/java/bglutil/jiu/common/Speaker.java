@@ -1,13 +1,7 @@
 package bglutil.jiu.common;
 
 import java.io.Serializable;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
-
-import bglutil.jiu.Jiu;
 
 
 /**
@@ -65,7 +59,12 @@ public class Speaker implements Serializable {
 		}
 		return rt;
 	}
-
+	
+	/**
+	 * Child node.
+	 * @param level
+	 * @return
+	 */
 	public String getChild(int level) {
 		StringBuffer sb = new StringBuffer();
 		for (int i = 0; i < level; i++) {
@@ -73,7 +72,7 @@ public class Speaker implements Serializable {
 		}
 		return new String(sb) + "[+] ";
 	}
-
+	
 	private String makeTitlePrefix(String symbol, int symbolCount, int indent) {
 		StringBuffer line = new StringBuffer();
 		String prefix = null;
@@ -90,20 +89,37 @@ public class Speaker implements Serializable {
 		} // end for
 		return line.toString();
 	}
-
+	
+	/**
+	 * Make a speaker.
+	 * @param renderType
+	 * @param symbol
+	 * @param child
+	 */
 	public Speaker(RenderType renderType, String symbol, String child) {
 		this.setRenderType(renderType);
 		this.symbol = symbol;
 	}
-
+	
+	/**
+	 * Make a speaker.
+	 * @param renderType
+	 */
 	public Speaker(RenderType renderType) {
 		this(renderType, "#", "[+] ");
 	}
-
+	
+	/**
+	 * Make a default speaker.
+	 */
 	public Speaker() {
 		this(RenderType.CONSOLE);
 	}
-
+	
+	/**
+	 * Change the render type of the speaker.
+	 * @param renderType
+	 */
 	public void setRenderType(RenderType renderType) {
 		this.renderType = renderType;
 		this.renderTypeName = this.renderType.getName();
@@ -154,7 +170,13 @@ public class Speaker implements Serializable {
 		}
 		return this.newLine + ret;
 	}
-
+	
+	/**
+	 * Print the title.
+	 * @param indentCount
+	 * @param symbol
+	 * @param content
+	 */
 	public void printTitle(int indentCount, String symbol, String content) {
 		System.out.println(this.makeTitle(indentCount, symbol, content));
 	}
@@ -171,7 +193,12 @@ public class Speaker implements Serializable {
 	public String makeTitle(int indentCount, String content) {
 		return makeTitle(indentCount, this.symbol, content);
 	}
-
+	
+	/**
+	 * Print the title.
+	 * @param indentCount
+	 * @param content
+	 */
 	public void printTitle(int indentCount, String content) {
 		System.out.println(this.makeTitle(indentCount, content));
 	}
@@ -214,37 +241,72 @@ public class Speaker implements Serializable {
 		}
 		return ret;
 	}
-
+	
+	/**
+	 * Print the result.
+	 * @param indentCount
+	 * @param withNewLine
+	 * @param e
+	 */
 	public <E> void printResult(int indentCount, boolean withNewLine, E e) {
 		System.out.print(this.makeResult(indentCount, withNewLine, e));
 	}
 	
+	/**
+	 * Print a Map literally.
+	 * @param indent
+	 * @param map
+	 */
 	public <T,U> void printMap(int indent, Map<T,U> map){
 		for(T t:map.keySet()){
 			this.printResult(indent,true,t.toString()+": "+map.get(t).toString());
 		}
 	}
-
+	
+	/**
+	 * Get the newline String.
+	 * @return
+	 */
 	public String getNewLine() {
 		return this.newLine;
 	}
-
+	
+	/**
+	 * Change newline String.
+	 * @param newLine
+	 */
 	public void setNewLine(String newLine) {
 		this.newLine = newLine;
 	}
-
+	
+	/**
+	 * Get indent String.
+	 * @return
+	 */
 	public String getIndent() {
 		return indent;
 	}
-
+	
+	/**
+	 * Change the indent String.
+	 * @param indent
+	 */
 	public void setIndent(String indent) {
 		this.indent = indent;
 	}
-
+	
+	/**
+	 * Get render type name.
+	 * @return
+	 */
 	public String getRenderTypeByName() {
 		return renderTypeName;
 	}
-
+	
+	/**
+	 * Get render type.
+	 * @return
+	 */
 	public RenderType getRenderType() {
 		return this.renderType;
 	}
