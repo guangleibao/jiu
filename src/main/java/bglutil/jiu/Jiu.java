@@ -96,6 +96,7 @@ import bglutil.jiu.common.VcnAsset;
 /**
  * Jiu Jiu~
  * Oracle Bare Metal Cloud demos for fun.
+ * @author bgl
  */
 public class Jiu {
 	// Those methods will not be exposed by main routine.
@@ -510,6 +511,7 @@ public class Jiu {
 		sk.printTitle(0,"Run following scripts on instance "+instanceName+" to connect the volume");
 		va = (IScsiVolumeAttachment) c.getVolumeAttachment(GetVolumeAttachmentRequest.builder().volumeAttachmentId(aid).build()).getVolumeAttachment();
 		this.printISCSIInfo(va);
+		sk.printResult(0, true, "*IMPORTANT NOTE & MUST READ: https://docs.us-phoenix-1.oraclecloud.com/Content/Block/Tasks/connectingtoavolume.htm");
 	}
 
 	/**
