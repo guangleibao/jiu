@@ -5,8 +5,10 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Set;
 import java.util.TreeSet;
@@ -55,12 +57,12 @@ import bglutil.jiu.Jiu;
 
 /**
  * Help center used by all other classes.
- * @author guanglei
+ * @author bgl
  *
  */
 public class Helper {
 	
-	// The speaker.
+	// The default console speaker.
 	private Speaker sk = new Speaker(Speaker.RenderType.CONSOLE);
 	
 	// Decorators.
@@ -71,7 +73,7 @@ public class Helper {
 	public static char LE = Character.toChars(10999)[0];
 	public static char RE = Character.toChars(11000)[0];
 	
-	/* progressStop bean */
+	/* progressStop bean BEGIN */
 	private boolean progressStop;
 	
 	public boolean isProgressStop() {
@@ -81,12 +83,12 @@ public class Helper {
 	public void setProgressStop(boolean progressStop) {
 		this.progressStop = progressStop;
 	}
-	/* progressStop bean */
+	/* progressStop bean END */
 	
-	// Spinner. 
+	// Spinner characters. 
 	private static String[] processingCharacters = new String[] { "\\", "|", "/", "-" };
 	
-	// Object name surrounder. 
+	// Object name simple decorator. 
 	public String objectName(String name){
 		return Helper.LE+" "+name+Helper.RE;
 	}
@@ -166,19 +168,59 @@ public class Helper {
 			System.exit(0);
 		}
 	}
+	
+	public static ArrayList<Method> getJiuTools(){
+		Method[] allMethods = Jiu.class.getDeclaredMethods();
+		ArrayList<Method> methods = new ArrayList<Method>();
+		String mn = null;
+		for (Method m : allMethods) {
+			mn = m.getName();
+			if (Modifier.isPublic(m.getModifiers()) && !Jiu.SKIPPED_METHODS.contains(mn)) {
+				methods.add(m);
+			}
+		}
+		return methods;
+	}
 
 	/**
 	 * Help those who cannot remember command names.
 	 * @param commandPrefix
+	 * @throws InvocationTargetException 
+	 * @throws IllegalArgumentException 
+	 * @throws IllegalAccessException 
+	 * @throws InterruptedException 
 	 */
-	public static void search(String commandPrefix) {
-		Method[] allMethods = Jiu.class.getDeclaredMethods();
-		for (Method m : allMethods) {
-			if (Jiu.SKIPPED_METHODS.contains(m.getName())) {
-				continue;
+	public void search(String commandPrefix) throws IllegalAccessException, IllegalArgumentException, InvocationTargetException, InterruptedException {
+		Jiu j = new Jiu();
+		ArrayList<Method> vm = Helper.getJiuTools();
+		Object[] params = null;
+		ArrayList<HelpCaller> instances = new ArrayList<HelpCaller>();
+		//System.out.println(vm.size());
+		for (Method m : vm) {
+			//System.out.println("X: "+m.getName());
+			if (m.getName().startsWith(commandPrefix)) {
+				//System.out.println(m.getName());
+				int parameterCount = m.getParameterTypes().length;
+				if(parameterCount>0){
+					params = new Object[parameterCount];
+					params[0]="-h";
+					for(int i=1;i<parameterCount;i++){
+						params[i] = "N/A";
+					}
+					//HelpCaller hc = new HelpCaller(j, m, params);
+					//hc.start();
+					//instances.add(hc);
+					//m.invoke(j, (Object[]) params);
+					System.out.println(m.getName()+" -h");
+				}
+				else{
+					System.out.println(m.getName());
+				}
 			}
-			if (Modifier.isPublic(m.getModifiers()) && m.getName().startsWith(commandPrefix)) {
-				System.out.println(m.getName());
+		}
+		for(HelpCaller hc:instances){
+			if(hc.isAlive()){
+				hc.join();
 			}
 		}
 	}
@@ -349,6 +391,30 @@ public class Helper {
 		InProgress ip = new InProgress(Character.toChars(9608)[0]+" "+s, 1);
 		ip.start();
 		return ip;
+	}
+	
+	class HelpCaller extends Thread{
+		private Method m;
+		private Object[] params;
+		private Jiu j;
+		
+		public HelpCaller(Jiu j, Method m, Object[] params){
+			this.j = j;
+			this.m = m;
+			this.params = params;
+		}
+		public void run(){
+			try {
+				if(params.length>0){
+					m.invoke(j, (Object[]) params);
+				}
+				else{
+					System.out.println(" j "+m.getName());
+				}
+			} catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+				e.printStackTrace();
+			}
+		}
 	}
 	
 	/**

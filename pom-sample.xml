@@ -17,7 +17,7 @@
     <dependency>
         <groupId>com.oracle.bmc.sdk</groupId>
         <artifactId>oracle-bmc-java-sdk-full</artifactId>
-        <version>1.2.8</version>
+        <version>1.2.10</version>
         <systemPath>${bmc.jar.location}</systemPath>
         <scope>system</scope>
     </dependency>
@@ -142,6 +142,6 @@
     </plugins>
   </build>
   <properties>
-    <bmc.jar.location>/PATH/TO/oracle-bmc-java-sdk-full-1.2.8.jar</bmc.jar.location>
+    <bmc.jar.location>/PATH/TO/oracle-bmc-java-sdk-full-1.2.10.jar</bmc.jar.location>
   </properties>
 </project>

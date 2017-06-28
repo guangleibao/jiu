@@ -6,7 +6,7 @@ import java.util.Map;
 
 /**
  * Output routines collection.
- * @author guanglei
+ * @author bgl
  *
  */
 @SuppressWarnings("serial")

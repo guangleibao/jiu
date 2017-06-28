@@ -20,7 +20,7 @@ import bglutil.jiu.common.UtilMain;
 
 /**
  * IAM utilities.
- * @author guanglei
+ * @author bgl
  *
  */
 public class UtilIam extends UtilMain{
@@ -28,8 +28,6 @@ public class UtilIam extends UtilMain{
 	public UtilIam(){
 		super();
 	}
-	
-	// GETTER //
 	
 	/**
 	 * Get All AD.
@@ -95,8 +93,7 @@ public class UtilIam extends UtilMain{
 		}
 		return ocid;
 	}
-	
-	// CREATOR //
+
 	
 	/**
 	 * Create a new compartment.
@@ -118,7 +115,5 @@ public class UtilIam extends UtilMain{
 		GetCompartmentResponse res = h.waitForCompartmentStatus(id, ccr.getCompartment().getId(), Compartment.LifecycleState.Active, "Creating compartment "+name, false);
 		return res.getCompartment();
 	}
-	
-	// TERMINATOR //
 	
 }

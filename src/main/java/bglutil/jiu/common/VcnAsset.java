@@ -29,7 +29,7 @@ import com.oracle.bmc.identity.Identity;
  * fact: VCN.
  * dimension: others.
  * 
- * @author guanglei
+ * @author bgl
  *
  */
 public class VcnAsset {

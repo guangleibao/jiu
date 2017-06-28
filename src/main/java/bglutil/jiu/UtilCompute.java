@@ -11,7 +11,6 @@ import java.util.TreeSet;
 import com.oracle.bmc.core.Compute;
 import com.oracle.bmc.core.VirtualNetwork;
 import com.oracle.bmc.core.model.AttachIScsiVolumeDetails;
-import com.oracle.bmc.core.model.AttachVolumeDetails;
 import com.oracle.bmc.core.model.IScsiVolumeAttachment;
 import com.oracle.bmc.core.model.Image;
 import com.oracle.bmc.core.model.Instance;
@@ -36,16 +35,26 @@ import com.oracle.bmc.core.requests.TerminateInstanceRequest;
 import com.oracle.bmc.core.responses.GetInstanceResponse;
 import com.oracle.bmc.core.responses.LaunchInstanceResponse;
 
-
+import bglutil.jiu.common.Helper;
 import bglutil.jiu.common.UtilMain;
 
+/**
+ * Compute service utilities.
+ * @author bgl
+ *
+ */
 public class UtilCompute extends UtilMain{
 	public UtilCompute() {
 		super();
 	}
 	
-	// GETTER //
-	
+	/**
+	 * Get volume attachment information in a compartment.
+	 * @param c
+	 * @param i
+	 * @param compartmentId
+	 * @return
+	 */
 	public List<VolumeAttachment> getVolumeAttachment(Compute c, Instance i, String compartmentId){
 		return c.listVolumeAttachments(ListVolumeAttachmentsRequest.builder().instanceId(i.getId())
 				.availabilityDomain(i.getAvailabilityDomain())
@@ -106,11 +115,24 @@ public class UtilCompute extends UtilMain{
 		return ocid;
 	}
 	
+	/**
+	 * Get all instances in a compartment.
+	 * @param c
+	 * @param compartmentId
+	 * @return
+	 */
 	public List<Instance> getAllInstance(Compute c, String compartmentId){
 		List<Instance> instances = c.listInstances(ListInstancesRequest.builder().compartmentId(compartmentId).build()).getItems();
 		return instances;
 	}
 	
+	/**
+	 * Get instance java object by name searching.
+	 * @param c
+	 * @param name
+	 * @param compartmentId
+	 * @return
+	 */
 	public Instance getInstanceByName(Compute c, String name, String compartmentId){
 		List<Instance> instances = c.listInstances(ListInstancesRequest.builder().compartmentId(compartmentId).build()).getItems();
 		Instance inst = null;
@@ -122,6 +144,15 @@ public class UtilCompute extends UtilMain{
 		return inst;
 	}
 	
+	/**
+	 * Get instance private/public ip address by name searching.
+	 * @param c
+	 * @param vn
+	 * @param name
+	 * @param privateOrPublic
+	 * @param compartmentId
+	 * @return
+	 */
 	public String getInstanceIpByName(Compute c, VirtualNetwork vn, String name, String privateOrPublic, String compartmentId){
 		String instanceId = this.getInstanceIdByName(c, name, compartmentId);
 		List<Vnic> vnics = this.getVnicByInstanceId(c, vn, instanceId, compartmentId);
@@ -237,7 +268,6 @@ public class UtilCompute extends UtilMain{
 		return ts;
 	}
 	
-	// KILLER //
 	/**
 	 * Terminate Vm instance.
 	 * @param c
@@ -251,11 +281,16 @@ public class UtilCompute extends UtilMain{
 		h.waitForInstanceStatus(c, instanceId, Instance.LifecycleState.Terminating, "Terminating VM Instance "+name, true);
 	}
 	
+	/**
+	 * Detach volume from instance.
+	 * @param c
+	 * @param volumeAttachmentId
+	 */
 	public void detachVolume(Compute c, String volumeAttachmentId){
 		c.detachVolume(DetachVolumeRequest.builder().volumeAttachmentId(volumeAttachmentId).build());
 		VolumeAttachment check = null;
 		while(true){
-			h.wait(1000);
+			Helper.wait(1000);
 			check = c.getVolumeAttachment(GetVolumeAttachmentRequest.builder().volumeAttachmentId(volumeAttachmentId).build()).getVolumeAttachment();
 			sk.printResult(0,true,check.getLifecycleState().getValue());
 			if(check.getLifecycleState().equals(VolumeAttachment.LifecycleState.Detached)){
@@ -264,8 +299,14 @@ public class UtilCompute extends UtilMain{
 		}
 	}
 	
-	// CREATOR //
-	
+	/**
+	 * Attach iSCSI volume to instance.
+	 * @param c
+	 * @param attachName
+	 * @param instanceId
+	 * @param volumeId
+	 * @return
+	 */
 	public IScsiVolumeAttachment attachVolumeIscsi(Compute c, String attachName, String instanceId, String volumeId){
 		IScsiVolumeAttachment va = (IScsiVolumeAttachment) c.attachVolume(AttachVolumeRequest.builder().attachVolumeDetails(AttachIScsiVolumeDetails.builder()
 				.displayName(attachName)
@@ -276,7 +317,7 @@ public class UtilCompute extends UtilMain{
 	}
 	
 	/**
-	 * Launch a new VM instance.
+	 * Launch a new instance.
 	 * @param c
 	 * @param compartmentId
 	 * @param subnetId
@@ -290,7 +331,7 @@ public class UtilCompute extends UtilMain{
 	 * @return
 	 * @throws Exception
 	 */
-	public GetInstanceResponse createVmInstance(Compute c, String compartmentId, String subnetId, String name, String imageId, String shapeId, String sshPublicKey, String ad, String userdataBase64, Instance.LifecycleState targetState) throws Exception{
+	public GetInstanceResponse createInstance(Compute c, String compartmentId, String subnetId, String name, String imageId, String shapeId, String sshPublicKey, String ad, String userdataBase64, Instance.LifecycleState targetState) throws Exception{
 		Map<String, String> metadata = new HashMap<String, String>();
         metadata.put("ssh_authorized_keys", sshPublicKey);
         if(userdataBase64!=null){

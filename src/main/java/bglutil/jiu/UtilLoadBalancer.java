@@ -13,7 +13,6 @@ import com.oracle.bmc.loadbalancer.model.HealthCheckerDetails;
 import com.oracle.bmc.loadbalancer.model.LoadBalancerPolicy;
 import com.oracle.bmc.loadbalancer.model.LoadBalancerShape;
 import com.oracle.bmc.loadbalancer.model.UpdateBackendDetails;
-import com.oracle.bmc.loadbalancer.model.UpdateLoadBalancerDetails;
 import com.oracle.bmc.loadbalancer.model.WorkRequest;
 import com.oracle.bmc.loadbalancer.requests.CreateBackendRequest;
 import com.oracle.bmc.loadbalancer.requests.CreateBackendSetRequest;
@@ -25,17 +24,18 @@ import com.oracle.bmc.loadbalancer.requests.ListLoadBalancersRequest;
 import com.oracle.bmc.loadbalancer.requests.ListPoliciesRequest;
 import com.oracle.bmc.loadbalancer.requests.ListShapesRequest;
 import com.oracle.bmc.loadbalancer.requests.UpdateBackendRequest;
-import com.oracle.bmc.loadbalancer.requests.UpdateLoadBalancerRequest;
 
 import bglutil.jiu.common.UtilMain;
 
-
-public class UtilLB extends UtilMain{
-	public UtilLB(){
+/**
+ * LoadBalancer utitiles.
+ * @author bgl
+ *
+ */
+public class UtilLoadBalancer extends UtilMain{
+	public UtilLoadBalancer(){
 		super();
 	}
-	
-	// GETTER //
 	
 	/**
 	 * Get available load balancer shapes.
@@ -78,9 +78,7 @@ public class UtilLB extends UtilMain{
 		}
 		return id;
 	}
-	
-	// CHANGER //
-	
+
 	/**
 	 * Change the backend status.
 	 * @param lb
@@ -105,8 +103,7 @@ public class UtilLB extends UtilMain{
 						.build()).build()).getOpcWorkRequestId();
 		return h.waitForWorkReqeustStatus(lb, wrId, "Changing "+backendName, false).getWorkRequest();
 	}
-	
-	// CREATOR //
+
 	/**
 	 * Add listener to load balancer.
 	 * @param lb
@@ -175,7 +172,7 @@ public class UtilLB extends UtilMain{
 	}
 	
 	/**
-	 * Create a new load balancer.
+	 * Create a new public load balancer.
 	 * @param lb
 	 * @param name
 	 * @param shapeName
@@ -185,7 +182,7 @@ public class UtilLB extends UtilMain{
 	 * @return
 	 * @throws Exception
 	 */
-	public WorkRequest createLoadBalancer(LoadBalancer lb, String name, String shapeName, String subnet1Id, String subnet2Id, String compartmentId) throws Exception{
+	public WorkRequest createLoadBalancerPublic(LoadBalancer lb, String name, String shapeName, String subnet1Id, String subnet2Id, String compartmentId) throws Exception{
 		
 		List<String> subnetIds = new ArrayList<String>();
 		subnetIds.add(subnet1Id); subnetIds.add(subnet2Id);
@@ -199,9 +196,7 @@ public class UtilLB extends UtilMain{
 						.build()).build()).getOpcWorkRequestId();
 		return h.waitForWorkReqeustStatus(lb, createLbReqId, "Creating Load Balancer "+name, false).getWorkRequest();
 	}
-	
-	// DELETER
-	
+		
 	/**
 	 * Remove LB in compartment by name.
 	 * @param lb

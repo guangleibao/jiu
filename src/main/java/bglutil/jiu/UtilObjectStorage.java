@@ -13,7 +13,6 @@ import com.oracle.bmc.objectstorage.model.BucketSummary;
 import com.oracle.bmc.objectstorage.model.CreateBucketDetails;
 import com.oracle.bmc.objectstorage.model.ObjectSummary;
 import com.oracle.bmc.objectstorage.model.PreauthenticatedRequest;
-import com.oracle.bmc.objectstorage.model.PreauthenticatedRequest.AccessType;
 import com.oracle.bmc.objectstorage.model.PreauthenticatedRequestSummary;
 import com.oracle.bmc.objectstorage.model.UpdateBucketDetails;
 import com.oracle.bmc.objectstorage.model.CreateBucketDetails.PublicAccessType;
@@ -45,7 +44,7 @@ import bglutil.jiu.common.UtilMain;
 /**
  * Object storage utilities.
  * 
- * @author guanglei
+ * @author bgl
  *
  */
 public class UtilObjectStorage extends UtilMain {
@@ -55,7 +54,7 @@ public class UtilObjectStorage extends UtilMain {
 	}
 
 	/**
-	 * Delete bucket..
+	 * Delete bucket.
 	 * 
 	 * @param os
 	 * @param bucketName
@@ -64,7 +63,13 @@ public class UtilObjectStorage extends UtilMain {
 		os.deleteBucket(
 				DeleteBucketRequest.builder().bucketName(bucketName).namespaceName(this.getNamespace(os)).build());
 	}
-	
+
+	/**
+	 * Delete PAR.
+	 * @param os
+	 * @param bucketName
+	 * @param parId
+	 */
 	public void deletePar(ObjectStorage os, String bucketName, String parId){
 		String namespaceName = this.getNamespace(os);
 		os.deletePreauthenticatedRequest(DeletePreauthenticatedRequestRequest.builder().bucketName(bucketName).namespaceName(namespaceName)
@@ -129,8 +134,14 @@ public class UtilObjectStorage extends UtilMain {
 		return par;
 	}
 
-	// CHANGE //
-
+	/**
+	 * Two public access types: no public, public.
+	 * @param os
+	 * @param bucketName
+	 * @param pat
+	 * @param compartmentId
+	 * @return
+	 */
 	public Bucket changeBucketPublicAccess(ObjectStorage os, String bucketName,
 			UpdateBucketDetails.PublicAccessType pat, String compartmentId) {
 		String ns = this.getNamespace(os);
@@ -141,7 +152,13 @@ public class UtilObjectStorage extends UtilMain {
 		return b;
 	}
 
-	// CREATOR //
+	/**
+	 * Create new bucket.
+	 * @param os
+	 * @param bucketName
+	 * @param compartmentId
+	 * @return
+	 */
 	public Bucket createBucket(ObjectStorage os, String bucketName, String compartmentId) {
 		String ns = this.getNamespace(os);
 		Bucket b = os.createBucket(CreateBucketRequest.builder()
@@ -150,8 +167,6 @@ public class UtilObjectStorage extends UtilMain {
 				.build()).getBucket();
 		return b;
 	}
-
-	// GETTER //
 
 	/**
 	 * Get the namespace for object storage.
@@ -213,7 +228,14 @@ public class UtilObjectStorage extends UtilMain {
 		} while (nextToken != null);
 		os.close();
 	}
-
+	
+	/**
+	 * Print out all PAR.
+	 * @param os
+	 * @param bucketName
+	 * @param profile
+	 * @throws Exception
+	 */
 	public void printAllPARsInBucket(ObjectStorage os, String bucketName, String profile) throws Exception {
 		com.oracle.bmc.objectstorage.requests.ListPreauthenticatedRequestsRequest.Builder listPARsBuilder = ListPreauthenticatedRequestsRequest
 				.builder().namespaceName(this.getNamespace(os)).bucketName(bucketName);
@@ -226,9 +248,7 @@ public class UtilObjectStorage extends UtilMain {
 		}
 		os.close();
 	}
-
-	// UPLOADER //
-
+	
 	/**
 	 * Upload a file using upload manager.
 	 * 
@@ -255,8 +275,6 @@ public class UtilObjectStorage extends UtilMain {
 		return response;
 
 	}
-
-	// DOWNLOADER //
 
 	/**
 	 * Download and save file.

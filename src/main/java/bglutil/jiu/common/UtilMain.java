@@ -27,7 +27,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Parent class for all UtilXxx classes.
- * @author guanglei
+ * @author bgl
  *
  */
 public class UtilMain {

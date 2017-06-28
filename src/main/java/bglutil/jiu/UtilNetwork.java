@@ -75,7 +75,7 @@ import bglutil.jiu.common.UtilMain;
 /**
  * VirtualNetwork utilities.
  * 
- * @author guanglei
+ * @author bgl
  *
  */
 public class UtilNetwork extends UtilMain {
@@ -84,7 +84,11 @@ public class UtilNetwork extends UtilMain {
 		super();
 	}
 
-	// Facet //
+	/**
+	 * Create Oracle NoSQL ingress secrule.
+	 * @param allowSourceCidr
+	 * @return
+	 */
 	public List<IngressSecurityRule> getInternalNoSqlIngressSecurityRules(String allowSourceCidr){
 		PortRange ssh = PortRange.builder().min(22).max(22).build();
 		PortRange nosql = PortRange.builder().min(5000).max(5030).build();
@@ -151,6 +155,7 @@ public class UtilNetwork extends UtilMain {
 		TcpOptions rmInbound = TcpOptions.builder().destinationPortRange(rm).build();
 		TcpOptions tsunamiInbound = TcpOptions.builder().destinationPortRange(tsunami).build();
 		UdpOptions tsunamiInboundu = UdpOptions.builder().destinationPortRange(tsunami).build();
+		IngressSecurityRule isrBastionVcnAll = IngressSecurityRule.builder().source(allowSourceCidr).protocol("all").build();
 		IngressSecurityRule isrBastionSsh = IngressSecurityRule.builder().source("0.0.0.0/0").protocol("6").tcpOptions(sshInbound).build();
 		IngressSecurityRule isrBastionRdp = IngressSecurityRule.builder().source("0.0.0.0/0").protocol("6").tcpOptions(rdpInbound).build();
 		IngressSecurityRule isrBastionRm = IngressSecurityRule.builder().source("0.0.0.0/0").protocol("6").tcpOptions(rmInbound).build();
@@ -158,7 +163,7 @@ public class UtilNetwork extends UtilMain {
 		IngressSecurityRule isrBastionTsunnami = IngressSecurityRule.builder().source("0.0.0.0/0").protocol("6").tcpOptions(tsunamiInbound).build();
 		IngressSecurityRule isrBastionTsunnamiu = IngressSecurityRule.builder().source("0.0.0.0/0").protocol("17").udpOptions(tsunamiInboundu).build();
 		List<IngressSecurityRule> ir = new ArrayList<IngressSecurityRule>();
-		ir.add(isrBastionSsh); ir.add(isrBastionRdp); ir.add(isrBastionRm); ir.add(isrBastionIcmp); ir.add(isrBastionTsunnami); ir.add(isrBastionTsunnamiu);
+		ir.add(isrBastionVcnAll); ir.add(isrBastionSsh); ir.add(isrBastionRdp); ir.add(isrBastionRm); ir.add(isrBastionIcmp); ir.add(isrBastionTsunnami); ir.add(isrBastionTsunnamiu);
 		return ir;
 	}
 	
@@ -184,8 +189,6 @@ public class UtilNetwork extends UtilMain {
 		er.add(esrBastionAll);
 		return er;
 	}
-	
-	// GETTER //
 	
 	/**
 	 * Which AD is this subnet sitting on?
@@ -222,6 +225,14 @@ public class UtilNetwork extends UtilMain {
 		return vnicToInstance;
 	}
 	
+	/**
+	 * Get all instances which are NOT in the designated status.
+	 * @param vn
+	 * @param c
+	 * @param subnet
+	 * @param state
+	 * @return
+	 */
 	public Hashtable<Vnic,Instance> getInstanceBySubnetReverseState(VirtualNetwork vn, Compute c, Subnet subnet, Instance.LifecycleState state){
 		Hashtable<Vnic,Instance> vnicToInstance = new Hashtable<Vnic,Instance>();
 		UtilCompute uc = new UtilCompute();
@@ -403,8 +414,6 @@ public class UtilNetwork extends UtilMain {
 		}
 		return res.getItems();
 	}
-
-	// UPDATOR //
 	
 	/**
 	 * Remove allows port from bastion 0.0.0.0/0 source.
@@ -451,8 +460,6 @@ public class UtilNetwork extends UtilMain {
 		UpdateSecurityListDetails usld = UpdateSecurityListDetails.builder().ingressSecurityRules(ir).build();
 		vn.updateSecurityList(UpdateSecurityListRequest.builder().securityListId(secListId).updateSecurityListDetails(usld).build());
 	}
-	
-	// CREATOR //
 
 	/**
 	 * Create a new VCN.
@@ -582,7 +589,6 @@ public class UtilNetwork extends UtilMain {
 		return res.getSecurityList();
 	}
 	
-	// TERMINATOR //
 	/**
 	 * Delete all route tables with matching display name prefix.
 	 * @param vn
@@ -626,9 +632,16 @@ public class UtilNetwork extends UtilMain {
 		}
 	}
 
-
-	
-	public void deleteVcnVmInstanceByVcnNamePrefix(LoadBalancer lb, VirtualNetwork vn, Compute c, String compartmentId, String vcnNamePrefix) throws Exception{
+	/**
+	 * Terminate instances by VCN name prefix.
+	 * @param lb
+	 * @param vn
+	 * @param c
+	 * @param compartmentId
+	 * @param vcnNamePrefix
+	 * @throws Exception
+	 */
+	public void deleteInstanceByVcnNamePrefix(LoadBalancer lb, VirtualNetwork vn, Compute c, String compartmentId, String vcnNamePrefix) throws Exception{
 		ListVcnsResponse res = vn.listVcns(ListVcnsRequest.builder().compartmentId(compartmentId).build());
 		UtilCompute uc = new UtilCompute();
 		for (Vcn v : res.getItems()) {
@@ -672,20 +685,6 @@ public class UtilNetwork extends UtilMain {
 						killList.add(instanceId);
 					}
 				}
-				/*
-				for(Subnet targetSn:targetSubnet){
-					for(String vmSnId:instanceToSubnet.values()){
-						for(String instanceId:instanceToSubnet.keySet()){
-							if(targetSn.getId().equals(vmSnId)){
-								Instance iii = c.getInstance(GetInstanceRequest.builder().instanceId(instanceId).build()).getInstance();
-								if(!iii.getLifecycleState().equals(Instance.LifecycleState.Terminated) || iii.getLifecycleState().equals(Instance.LifecycleState.Terminating)){
-									uc.killInstanceById(c, compartmentId, instanceId);
-									killList.add(instanceId);
-								}
-							}
-						}
-					}
-				}*/
 				String[] k = new String[killList.size()];
 				for(int i=0;i<k.length;i++){
 					k[i] = killList.get(i);

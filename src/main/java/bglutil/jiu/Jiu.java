@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
-import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -76,15 +75,11 @@ import com.oracle.bmc.loadbalancer.requests.GetLoadBalancerRequest;
 import com.oracle.bmc.loadbalancer.requests.ListLoadBalancersRequest;
 import com.oracle.bmc.objectstorage.ObjectStorage;
 import com.oracle.bmc.objectstorage.ObjectStorageClient;
-import com.oracle.bmc.objectstorage.model.Bucket;
-import com.oracle.bmc.objectstorage.model.CreateBucketDetails;
 import com.oracle.bmc.objectstorage.model.CreatePreauthenticatedRequestDetails;
 import com.oracle.bmc.objectstorage.model.ObjectSummary;
 import com.oracle.bmc.objectstorage.model.PreauthenticatedRequest;
 import com.oracle.bmc.objectstorage.model.PreauthenticatedRequestSummary;
 import com.oracle.bmc.objectstorage.model.UpdateBucketDetails;
-import com.oracle.bmc.objectstorage.model.CreateBucketDetails.PublicAccessType;
-import com.oracle.bmc.objectstorage.requests.CreateBucketRequest;
 import com.oracle.bmc.objectstorage.requests.ListObjectsRequest;
 import com.oracle.bmc.objectstorage.requests.ListPreauthenticatedRequestsRequest;
 import com.oracle.bmc.objectstorage.responses.ListObjectsResponse;
@@ -93,10 +88,9 @@ import com.oracle.bmc.objectstorage.transfer.UploadManager.UploadResponse;
 import com.oracle.bmc.ClientConfiguration;
 import com.oracle.bmc.Region;
 
+import bglutil.jiu.common.Fullstacking;
 import bglutil.jiu.common.Helper;
 import bglutil.jiu.common.Speaker;
-import bglutil.jiu.common.SubnetAsset;
-import bglutil.jiu.common.UtilMain;
 import bglutil.jiu.common.VcnAsset;
 
 /**
@@ -118,10 +112,68 @@ public class Jiu {
 	private static Speaker sk = Speaker.CONSOLE;
 	private Helper h = new Helper();
 	
+	// INTERNAL METHODS BEGIN //
 	
-	// OBJECT STORAGE //
+	/**
+	 * Print method names.
+	 * @param clazz
+	 */
+	private void showAction(Class<?> clazz){
+		List<String> skip = new ArrayList<String>();
+		skip.add("close");skip.add("setEndpoint");skip.add("setRegion");skip.add("getWaiters");
+		Set<String> methods = h.getPublicMethodName(clazz);
+		int i=0;
+		for(String m:methods){
+			System.out.println(skip.contains(m)?Helper.STAR+" "+m:(++i)+": "+m);
+		}
+	}
 	
-	public void removePar(String bucketName, String parId, String profile) throws NumberFormatException, IOException{
+	/**
+	 * Print iSCSI connect shell commands for volume attached to BMC instance.
+	 * @param va
+	 */
+	private void printISCSIInfo(IScsiVolumeAttachment va){
+		String iqn = va.getIqn();
+		String ipv4 = va.getIpv4();
+		String port = va.getPort()==null?"3260":va.getPort().toString();
+		StringBuffer script = new StringBuffer();
+		script.append("sudo iscsiadm -m node -o new -T "+iqn+" -p "+ipv4+":"+port+"\n");
+		script.append("sudo iscsiadm -m node -T "+iqn+" -o update -n node.startup -v automatic\n");
+		script.append("sudo iscsiadm -m node -T "+iqn+" -p "+ipv4+":"+port+" -l\n");
+		String output = new String(script);
+		System.out.println(output);
+	}
+
+	// INTERNAL METHODS END //
+	
+	// OBJECT STORAGE BEGIN //
+	
+	/**
+	 * Delete object.
+	 * @param bucketName
+	 * @param objectName
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
+	public void destroyObject(String bucketName, String objectName, String profile) throws NumberFormatException, IOException{
+		h.help(bucketName, "<bucket-name> <object-name> <profile>");
+		sk.printTitle(0, "Delete object: "+objectName);
+		ObjectStorage os = Client.getObjectStorageClient(profile);
+		UtilObjectStorage uos = new UtilObjectStorage();
+		uos.deleteObject(os, bucketName, objectName);
+		sk.printTitle(0, "End");
+	}
+	
+	/**
+	 * Delete PAR.
+	 * @param bucketName
+	 * @param parId
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
+	public void destroyPar(String bucketName, String parId, String profile) throws NumberFormatException, IOException{
 		h.help(bucketName, "<bucketName> <par-id> <profile>");
 		sk.printTitle(0, "Delete PAR "+parId);
 		ObjectStorage os = Client.getObjectStorageClient(profile);
@@ -130,6 +182,12 @@ public class Jiu {
 		sk.printTitle(0, "End");
 	}
 	
+	/**
+	 * Show PAR for bucket.
+	 * @param bucketName
+	 * @param profile
+	 * @throws Exception
+	 */
 	public void showPar(String bucketName, String profile) throws Exception{
 		h.help(bucketName, "<bucketName> <profile>");
 		sk.printTitle(0, "Purge bucket "+bucketName);
@@ -138,7 +196,14 @@ public class Jiu {
 		uos.printAllPARsInBucket(os, bucketName, profile);
 		sk.printTitle(0, "End");
 	}
-	
+
+	/**
+	 * Purge the contents in the bucket.
+	 * @param bucketName
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
 	public void purgeBucket(String bucketName, String profile) throws NumberFormatException, IOException{
 		h.help(bucketName, "<bucketName> <profile>");
 		sk.printTitle(0, "Purge bucket "+bucketName);
@@ -170,7 +235,30 @@ public class Jiu {
 		sk.printTitle(0, "End");
 	}
 	
-	public void deleteBucketForce(String bucketName, String profile) throws NumberFormatException, IOException{
+	/**
+	 * Delete the empty bucket.
+	 * @param bucketName
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
+	public void destroyBucket(String bucketName, String profile) throws NumberFormatException, IOException{
+		h.help(bucketName, "<bucketName> <profile>");
+		sk.printTitle(0, "Delete bucket "+bucketName);
+		ObjectStorage os = Client.getObjectStorageClient(profile);
+		UtilObjectStorage uos = new UtilObjectStorage();
+		uos.deleteBucket(os, bucketName);
+		sk.printTitle(0, "End");
+	}
+	
+	/**
+	 * Destroy the content in the bucket and the bucket.
+	 * @param bucketName
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
+	public void nukeBucket(String bucketName, String profile) throws NumberFormatException, IOException{
 		h.help(bucketName, "<bucketName> <profile>");
 		sk.printTitle(0, "Cascade delete bucket "+bucketName);
 		ObjectStorage os = Client.getObjectStorageClient(profile);
@@ -181,15 +269,13 @@ public class Jiu {
 		sk.printTitle(0, "End");
 	}
 	
-	public void deleteBucket(String bucketName, String profile) throws NumberFormatException, IOException{
-		h.help(bucketName, "<bucketName> <profile>");
-		sk.printTitle(0, "Delete bucket "+bucketName);
-		ObjectStorage os = Client.getObjectStorageClient(profile);
-		UtilObjectStorage uos = new UtilObjectStorage();
-		uos.deleteBucket(os, bucketName);
-		sk.printTitle(0, "End");
-	}
-	
+	/**
+	 * OPEN the bucket.
+	 * @param bucketName
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
 	public void makeBucketPublic(String bucketName, String profile) throws NumberFormatException, IOException{
 		h.help(bucketName, "<bucketName> <profile>");
 		sk.printTitle(0, "Change bucket "+bucketName+" to public");
@@ -200,6 +286,13 @@ public class Jiu {
 		sk.printTitle(0, "End");
 	}
 	
+	/**
+	 * CLOSE the bucket.
+	 * @param bucketName
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
 	public void makeBucketPrivate(String bucketName, String profile) throws NumberFormatException, IOException{
 		h.help(bucketName, "<bucketName> <profile>");
 		sk.printTitle(0, "Change bucket "+bucketName+" to private");
@@ -210,6 +303,15 @@ public class Jiu {
 		sk.printTitle(0, "End");
 	}
 	
+	/**
+	 * Generate the GET PAR for object.
+	 * @param bucketName
+	 * @param objectName
+	 * @param hours
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
 	public void createParGet(String bucketName, String objectName, String hours, String profile) throws NumberFormatException, IOException{
 		h.help(bucketName, "<bucketName> <objectName> <hours> <profile>");
 		ObjectStorage os = Client.getObjectStorageClient(profile);
@@ -227,6 +329,25 @@ public class Jiu {
 	}
 	
 	/**
+	 * Print the GET PAR URL only.
+	 * @param bucketName
+	 * @param objectName
+	 * @param hours
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
+	public void printParGet(String bucketName, String objectName, String hours, String profile) throws NumberFormatException, IOException{
+		h.help(bucketName, "<bucketName> <objectName> <hours> <profile>");
+		ObjectStorage os = Client.getObjectStorageClient(profile);
+		UtilObjectStorage uos = new UtilObjectStorage();
+		String regionCode = Config.getConfigFileReader(profile).get("region");
+		PreauthenticatedRequest par = uos.generatePreAuthenticatedReqeust(os, bucketName, objectName, bucketName+"-"+objectName+"-JiuGet", 
+				CreatePreauthenticatedRequestDetails.AccessType.ObjectRead, Long.valueOf(hours));
+		System.out.println("https://objectstorage."+regionCode+".oraclecloud.com"+par.getAccessUri());
+	}
+
+	/**
 	 * Show all buckets.
 	 * @param profile
 	 * @throws Exception
@@ -240,17 +361,23 @@ public class Jiu {
 		sk.printTitle(0, "End");
 	}
 	
+	/**
+	 * Create a new bucket.
+	 * @param bucketName
+	 * @param profile
+	 * @throws Exception
+	 */
 	public void createBucket(String bucketName, String profile) throws Exception{
 		h.help(bucketName, "<bucketName> <profile>");
 		ObjectStorage os = Client.getObjectStorageClient(profile);
 		UtilObjectStorage uos = new UtilObjectStorage();
 		sk.printTitle(0, "Create bucket named "+bucketName);
 		String compartmentId = Config.getMyCompartmentId(profile);
-		Bucket b = uos.createBucket(os, bucketName, compartmentId);
+		uos.createBucket(os, bucketName, compartmentId);
 		this.showBucket(profile);
 		sk.printTitle(0, "End");
 	}
-	
+
 	/**
 	 * List all objects under a bucket.
 	 * @param bucketName
@@ -265,7 +392,7 @@ public class Jiu {
 		uos.printAllObjectsInBucket(os, bucketName, profile);
 		sk.printTitle(0, "End");
 	}
-	
+
 	/**
 	 * Upload a file to Object Storage
 	 * @param bucketName
@@ -305,10 +432,118 @@ public class Jiu {
 		uos.download(os, bucketName, objectName, new File(filePath));
 		h.done(Helper.BUILDING);
 	}
+
+	/**
+	 * Show namespace for object storage.
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
+	public void showNamespace(String profile) throws NumberFormatException, IOException{
+		h.help(profile, "<profile>");
+		ObjectStorage os = Client.getObjectStorageClient(profile);
+		UtilObjectStorage uos = new UtilObjectStorage();
+		sk.printTitle(0, "Namespace: "+uos.getNamespace(os));
+	}
+
+	// OBJECT STORAGE END //
+
+	// COMPUTE BEGIN //
+
+	/**
+	 * Send actions to instance.
+	 * @param name
+	 * @param action
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void instanceActionByName(String name, String action, String profile) throws Exception{
+		h.help(name, "<name> <action: start|stop|reset|softreset> <profile>");
+		sk.printTitle(0, "Executing VM instance action - "+action+" for "+name);
+		Compute c = Client.getComputeClient(profile);
+		UtilCompute uc = new UtilCompute();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		String instanceId = uc.getInstanceIdByName(c, name, compartmentId);
+		c.instanceAction(InstanceActionRequest.builder()
+				.instanceId(instanceId)
+				.action(action).build()).getInstance();
+		Instance.LifecycleState state = null;
+		if(action.equals("start")||action.equals("reset")||action.equals("softreset")){
+			state = Instance.LifecycleState.Running;
+		}
+		else if(action.equals("stop")){
+			state = Instance.LifecycleState.Stopped;
+		}
+		h.waitForInstanceStatus(c, instanceId, state, "waiting", false);
+		sk.printTitle(0, "End");
+	}
 	
-	
-	// COMPUTE //
-	
+	/**
+	 * Attach volume to instance.
+	 * @param volumeName
+	 * @param instanceName
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
+	public void attachVolume(String volumeName, String instanceName, String profile) throws NumberFormatException, IOException{
+		h.help(volumeName, "<volume-name> <instance-name> <profile>");
+		sk.printTitle(0, "Attach volume "+volumeName+" to "+instanceName);
+		Compute c = Client.getComputeClient(profile);
+		Blockstorage bs = Client.getBlockstorageClient(profile);
+		UtilCompute uc = new UtilCompute();
+		UtilBlockStorage ubs = new UtilBlockStorage();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		Instance i = uc.getInstanceByName(c, instanceName, compartmentId);
+		Volume v = ubs.getVolumeByName(bs, volumeName, i.getAvailabilityDomain(), compartmentId);
+		IScsiVolumeAttachment va = uc.attachVolumeIscsi(c, volumeName+"-"+instanceName, i.getId(), v.getId());
+		String aid = va.getId();
+		VolumeAttachment check = null;
+		while(true){
+			Helper.wait(1000);
+			check = c.getVolumeAttachment(GetVolumeAttachmentRequest.builder().volumeAttachmentId(aid).build()).getVolumeAttachment();
+			sk.printResult(0,true,check.getLifecycleState().getValue());
+			if(check.getLifecycleState().equals(VolumeAttachment.LifecycleState.Attached)){
+				break;
+			}
+		}
+		sk.printTitle(0,"Run following scripts on instance "+instanceName+" to connect the volume");
+		va = (IScsiVolumeAttachment) c.getVolumeAttachment(GetVolumeAttachmentRequest.builder().volumeAttachmentId(aid).build()).getVolumeAttachment();
+		this.printISCSIInfo(va);
+	}
+
+	/**
+	 * Launch a new VM instance.
+	 * @param name
+	 * @param vcnName
+	 * @param subnetName
+	 * @param imageName
+	 * @param shapeName
+	 * @param userdataFilePath
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void createInstance(String name, String vcnName, String subnetName, String imageName, String shapeName, String userdataFilePath, String profile) throws Exception{
+		h.help(name, "<name> <vcn-name> <subnet-name> <image-name> <shape-name> <user-data-file-path> <profile>");
+		sk.printTitle(0, "Creating VM");
+		Compute c = Client.getComputeClient(profile);
+		UtilCompute uc = new UtilCompute();
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilNetwork un = new UtilNetwork();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		String subnetId = un.getSubnetIdByName(vn, subnetName, un.getVcnIdByName(vn, vcnName, compartmentId), compartmentId);
+		String imageId = uc.getImageIdByName(c, imageName, compartmentId);
+		GetInstanceResponse gis = uc.createInstance(c, compartmentId, subnetId, name, imageId, shapeName, Config.publicKeyToString(profile), un.getAdBySubnetId(vn, subnetId), 
+				userdataFilePath.equalsIgnoreCase("null")?null:h.base64EncodeFromFile(userdataFilePath), 
+				Instance.LifecycleState.Running);
+		sk.printResult(0,true,gis.getInstance());
+		if(imageName.toLowerCase().contains("windows")){
+			InstanceCredentials ic = c.getWindowsInstanceInitialCredentials(GetWindowsInstanceInitialCredentialsRequest.builder().instanceId(gis.getInstance().getId()).build()).getInstanceCredentials();
+			sk.printResult(0, true, "Windows Login: "+ic.getUsername()+"/"+ic.getPassword());
+		}
+		sk.printTitle(0, "End");
+	}
+
 	/**
 	 * Compute. Detach a block volume from instance.
 	 * @param volumeName
@@ -340,10 +575,12 @@ public class Jiu {
 		sk.printTitle(0, "End");
 	}
 	
-	// SHOW //
-	
-
-	
+	/**
+	 * Show volume attachments.
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
 	public void showVolumeAttachment(String profile) throws NumberFormatException, IOException{
 		h.help(profile, "<profile>");
 		sk.printTitle(0, "Instance and volume attachment in profile compartment");
@@ -369,7 +606,7 @@ public class Jiu {
 		}
 		sk.printTitle(0, "End");
 	}
-	
+
 	/**
 	 * Show all volumes that vm can utilize in subnet scope.
 	 * @param vcnName
@@ -414,66 +651,7 @@ public class Jiu {
 		}
 		sk.printTitle(0, "End");
 	}
-	
-	private void showAction(Class clazz){
-		List<String> skip = new ArrayList<String>();
-		skip.add("close");skip.add("setEndpoint");skip.add("setRegion");skip.add("getWaiters");
-		Set<String> methods = h.getPublicMethodName(clazz);
-		int i=0;
-		for(String m:methods){
-			System.out.println(skip.contains(m)?Helper.STAR+" "+m:(++i)+": "+m);
-		}
-	}
-	
-	/**
-	 * List all actions available for compute service.
-	 */
-	public void showActionCompute(){
-		this.showAction(ComputeClient.class);
-	}
-	
-	/**
-	 * List all actions available for block storage service.
-	 */
-	public void showActionBlockstorage(){
-		this.showAction(BlockstorageClient.class);
-	}
-	
-	/**
-	 * List all actions available for network service.
-	 */
-	public void showActionNetwork(){
-		this.showAction(VirtualNetworkClient.class);
-	}
-	
-	/**
-	 * List all actions available for IAM service.
-	 */
-	public void showActionIam(){
-		this.showAction(IdentityClient.class);
-	}
-	
-	/**
-	 * List all actions available for audit service.
-	 */
-	public void showActionAudit(){
-		this.showAction(AuditClient.class);
-	}
-	
-	/**
-	 * List all actions available for object storage service.
-	 */
-	public void showActionObjectStorage(){
-		this.showAction(ObjectStorageClient.class);
-	}
-	
-	/**
-	 * List all actions available for load balancing service.
-	 */
-	public void showActionLoadbalancer(){
-		this.showAction(LoadBalancerClient.class);
-	}
-	
+
 	/**
 	 * Print out instanceId by name.
 	 * @param name
@@ -505,142 +683,7 @@ public class Jiu {
 		String compartmentId = Config.getMyCompartmentId(profile);
 		System.out.println(uc.getInstanceIpByName(c, vn, name, privateOrPublic, compartmentId));
 	}
-	
-	/**
-	 * Show namespace for object storage.
-	 * @param profile
-	 * @throws NumberFormatException
-	 * @throws IOException
-	 */
-	public void showNamespace(String profile) throws NumberFormatException, IOException{
-		h.help(profile, "<profile>");
-		ObjectStorage os = Client.getObjectStorageClient(profile);
-		UtilObjectStorage uos = new UtilObjectStorage();
-		sk.printTitle(0, "Namespace: "+uos.getNamespace(os));
-	}
-	
-	/**
-	 * Show all load balancers in a VCN.
-	 * @param vcnName
-	 * @param profile
-	 * @throws NumberFormatException
-	 * @throws IOException
-	 */
-	public void showLbInVcn(String vcnName, String profile) throws NumberFormatException, IOException{
-		h.help(vcnName, "<vcn-name> <profile>");
-		sk.printTitle(0, "Show all load balancers in VCN "+vcnName);
-		UtilLB ulb = new UtilLB();
-		LoadBalancer lb = Client.getLoadBalancerClient(profile);
-		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
-		UtilNetwork un = new UtilNetwork();
-		String compartmentId = Config.getMyCompartmentId(profile);
-		String vcnId = un.getVcnIdByName(vn, vcnName, compartmentId);
-		List<com.oracle.bmc.loadbalancer.model.LoadBalancer> ls = lb.listLoadBalancers(ListLoadBalancersRequest.builder().compartmentId(compartmentId).build()).getItems();
-		for(com.oracle.bmc.loadbalancer.model.LoadBalancer l:ls){
-			for(String subnetId:l.getSubnetIds()){
-				Subnet s = vn.getSubnet(GetSubnetRequest.builder().subnetId(subnetId).build()).getSubnet();
-				if(s.getVcnId().equals(vcnId)){
-					List<String> sids = l.getSubnetIds();
-					List<Subnet> sns = new ArrayList<Subnet>();
-					for(String sid:sids){
-						sns.add(vn.getSubnet(GetSubnetRequest.builder().subnetId(sid).build()).getSubnet());
-					}
-					sk.printResult(1,true, Helper.STAR+" "+Helper.STAR+" LoadBalancer: "+l.getDisplayName()+", "+l.getIpAddresses().get(0)+", "+l.getShapeName()+" @"+sns.get(0).getCidrBlock()+","+sns.get(1).getCidrBlock());
-					for(String lName:l.getListeners().keySet()){
-						sk.printResult(2,true, l.getListeners().get(lName));
-					}
-					for(String backendSetName:l.getBackendSets().keySet()){
-						sk.printResult(2, true, "BackendSet: "+l.getBackendSets().get(backendSetName).getName()+", "+l.getBackendSets().get(backendSetName).getPolicy());
-						List<Backend> ends = l.getBackendSets().get(backendSetName).getBackends();
-						for(Backend be:ends){
-							sk.printResult(3, true, "Backend: "+be.getName()+", "+be.getIpAddress()+", "+be.getPort()+", "+be.getWeight()+", "+(be.getOffline()?"offline":"online"+", "+(be.getBackup()?"backup":"primary")+", "+(be.getDrain()?"drain":"active")));
-						}
-					}
-					break;
-				}
-			}
-		}
-		sk.printTitle(0, "End");
-	}
-	
-	/**
-	 * Show AD.
-	 * @param profile
-	 * @throws IOException
-	 */
-	public void showAd(String profile) throws IOException{
-		sk.printTitle(0, "Bare Metal AD in "+Config.getConfigFileReader(profile).get("region"));
-		Identity id = Client.getIamClient(profile);
-		List<AvailabilityDomain> ads = id.listAvailabilityDomains(ListAvailabilityDomainsRequest.builder().compartmentId(Config.getMyCompartmentId(profile)).build()).getItems();
-		for(AvailabilityDomain ad:ads){
-			sk.printResult(0, true, ad.getName());
-		}
-		sk.printTitle(0, "End");
-	}
-	
-	/**
-	 * Encode plain text base64.
-	 * @param plainText
-	 */
-	public void base64Encode(String plainText){
-		h.help(plainText, "<plain-text>");
-		System.out.println(h.base64Encode(plainText));
-	}
-	
-	/**
-	 * Decode plain text from base64.
-	 * @param base64
-	 */
-	public void base64Decode(String base64){
-		h.help(base64, "<base64>");
-		System.out.println(h.base64Decode(base64));
-	}
-	
-	/**
-	 * Encode file content to base64.
-	 * @param path
-	 */
-	public void base64EncodeFromFile(String path){
-		h.help(path, "<path>");
-		h.base64EncodeFromFile(path);
-	}
-	
-	/**
-	 * Show available load balancer policies.
-	 * @param profile
-	 * @throws NumberFormatException
-	 * @throws IOException
-	 */
-	public void showLbPolicy(String profile) throws NumberFormatException, IOException{
-		h.help(profile, "<profile>");
-		UtilLB ulb = new UtilLB();
-		LoadBalancer lb = Client.getLoadBalancerClient(profile);
-		List<LoadBalancerPolicy> policies = ulb.getAllLoadBalancerPolicy(lb, Config.getMyCompartmentId(profile));
-		sk.printTitle(0, "All Load Balancer Policies");
-		for(LoadBalancerPolicy p:policies){
-			sk.printResult(0, true, p.getName());
-		}
-		sk.printTitle(0, "End");
-	}
-	
-	/**
-	 * Show available load balancer shapes.
-	 * @param profile
-	 * @throws NumberFormatException
-	 * @throws IOException
-	 */
-	public void showLbShape(String profile) throws NumberFormatException, IOException{
-		h.help(profile, "<profile>");
-		UtilLB ulb = new UtilLB();
-		LoadBalancer lb = Client.getLoadBalancerClient(profile);
-		List<LoadBalancerShape> shapes = ulb.getAllLoadBalancerShapeName(lb, Config.getMyCompartmentId(profile));
-		sk.printTitle(0, "All Load Balancer Shapes");
-		for(LoadBalancerShape s:shapes){
-			sk.printResult(0, true, s.getName());
-		}
-		sk.printTitle(0, "End");
-	}
-	
+
 	/**
 	 * Show available VM images.
 	 * @param profile
@@ -677,6 +720,108 @@ public class Jiu {
 	}
 	
 	/**
+	 * Create a new volume in subnet (AD actually).
+	 * @param name
+	 * @param vcnName
+	 * @param subnetName
+	 * @param sizeGB
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void createVolumeInSubnet(String name, String vcnName, String subnetName, String sizeGB, String profile) throws Exception{
+		h.help(name, "<name> <vcn-name> <subnet-name> <size-in-GB> <profile>");
+		Blockstorage bs = Client.getBlockstorageClient(profile);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilBlockStorage ubs = new UtilBlockStorage();
+		UtilNetwork un = new UtilNetwork();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		Subnet sn = un.getSubnetByName(vn, subnetName, un.getVcnIdByName(vn, vcnName, compartmentId), compartmentId);
+		Volume v = ubs.createVolume(bs, name, sn.getAvailabilityDomain(), Long.valueOf(sizeGB), compartmentId);
+		h.waitForVolumeStatus(bs, v.getId(), Volume.LifecycleState.Available, "Creating volume", false);
+		
+		this.showVolume(vcnName, profile);
+	}
+	
+	/**
+	 * Delete the volume.
+	 * @param volumeName
+	 * @param availabilityDomain
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void destroyVolume(String volumeName, String availabilityDomain, String profile) throws Exception{
+		h.help(volumeName, "<volume-name> <availability-domain> <profile>");
+		sk.printTitle(0, "Delete volume named "+volumeName);
+		String compartmentId = Config.getMyCompartmentId(profile);
+		Blockstorage bs = Client.getBlockstorageClient(profile);
+		UtilBlockStorage ubs = new UtilBlockStorage();
+		Volume v = ubs.getVolumeByName(bs, volumeName, availabilityDomain, compartmentId);
+		ubs.killVolumeById(bs, v.getId());
+		h.waitForVolumeStatus(bs, v.getId(), Volume.LifecycleState.Terminated, "Removing volume", true);
+		sk.printTitle(0, "End");
+	}
+
+	/**
+	 * Delete instances in selected VCN by name prefix.
+	 * @param namePrefix
+	 * @param vcnName
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void destroyInstanceInVcn(String namePrefix, String vcnName, String profile) throws Exception{
+		h.help(namePrefix, "<instance-name-prefix> <vcn-name> <profile>");
+		sk.printTitle(0, "Delete Instances with Name Prefix "+namePrefix+" in VCN "+vcnName);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilNetwork un = new UtilNetwork();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		String vcnId = un.getVcnIdByName(vn, vcnName, compartmentId);
+		Compute c = Client.getComputeClient(profile);
+		UtilCompute uc = new UtilCompute();
+		List<Instance> instances = c.listInstances(ListInstancesRequest.builder().compartmentId(compartmentId).build()).getItems();
+		TreeMap<String,String> snToInstance = new TreeMap<String,String>(); 
+		for(Instance vm:instances){
+			if(vm.getDisplayName().startsWith(namePrefix) && !vm.getLifecycleState().getValue().equals(Instance.LifecycleState.Terminated.getValue())){
+				List<VnicAttachment> vnicAttachments = c.listVnicAttachments(ListVnicAttachmentsRequest.builder().compartmentId(compartmentId).instanceId(vm.getId()).build()).getItems();
+				for(VnicAttachment va:vnicAttachments){
+					snToInstance.put(va.getSubnetId(), vm.getId());
+				}
+			}
+		}
+		List<Subnet> sns = vn
+				.listSubnets(ListSubnetsRequest.builder().compartmentId(compartmentId).vcnId(vcnId).build())
+				.getItems();
+		for(Subnet sn:sns){
+			for(String snId:snToInstance.keySet()){
+				if(snId.equals(sn.getId())){
+					uc.killInstanceById(c, compartmentId, snToInstance.get(snId));
+				}
+			}
+		}
+		sk.printTitle(0, "End");
+	}
+
+	// COMPUTE END //
+
+	// NETWORK BEGIN //
+
+	/**
+	 * Create a new VCN by CIDR.
+	 * @param name
+	 * @param cidr
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void createVcn(String name, String cidr, String profile) throws Exception {
+		h.help(name, "<name> <cidr> <profile>");
+		sk.printTitle(0, "Create VCN - "+name);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilNetwork un = new UtilNetwork();
+		Vcn vcn = un.createVcn(vn, Config.getMyCompartmentId(profile), name, cidr, "Jiu - "+name);
+		sk.printResult(0, true, vcn.getCidrBlock()+", "+vcn.getVcnDomainName()+", "+vcn.getId()+" CREATED.");
+		sk.printTitle(0, "End");
+	}
+
+	/**
 	 * Show rules for seclist.
 	 * @param secListOcid
 	 * @param profile
@@ -691,32 +836,7 @@ public class Jiu {
 		un.printSecListRules(sl);
 		sk.printTitle(0, "End");
 	}
-	
-	
-	
-	/**
-	 * Show all IAM users.
-	 * @param profile
-	 * @throws Exception
-	 */
-	public void showUser(String profile) throws Exception{
-		h.help(profile, "<profile-name>");
-		Identity id = Client.getIamClient(profile);
-		ListUsersResponse res = id.listUsers(
-				ListUsersRequest.builder().compartmentId(Config.getConfigFileReader(profile).get("tenancy")).build()
-				);
-		sk.printTitle(0, "All IAM Users");
-		for (User u:res.getItems()){
-			sk.printResult(0, true, u.getName()+", "+u.getLifecycleState().getValue()+", "+u.getId());
-			List<ApiKey> ak = id.listApiKeys(ListApiKeysRequest.builder().userId(u.getId()).build()).getItems();
-			for(ApiKey k:ak){
-				sk.printResult(1, true, k.getKeyValue());
-				
-			}
-		}
-		sk.printTitle(0, "End");
-	}
-	
+
 	/**
 	 * Show all VCN details by profile compartment.
 	 * @param profile
@@ -826,157 +946,201 @@ public class Jiu {
 		}
 		sk.printTitle(0, "End");
 	}
-	
+
 	/**
-	 * Show client config.
-	 * @throws IOException 
-	 * @throws NumberFormatException 
-	 */
-	public void showClientConfig(String profile) throws NumberFormatException, IOException{
-		h.help(profile, "<profile-name>");
-		ClientConfiguration cc = Config.getClientConfig(profile);
-		sk.printTitle(0, "Current Client Config");
-		sk.printResult(0, true, "Connection Timeout (ms): "+cc.getConnectionTimeoutMillis());
-		sk.printResult(0, true, "Read Timeout (ms): "+cc.getReadTimeoutMillis());
-		sk.printResult(0, true, "Max Async Threads: "+cc.getMaxAsyncThreads());
-		sk.printTitle(0, "End");
-	}
-	
-	/**
-	 * Show all regions.
-	 */
-	public void showRegionCode(){
-		sk.printTitle(0, "Bare Metal Regions");
-		int i=0;
-		for(Region r:Region.values()){
-			sk.printResult(0, true, "("+(++i)+") "+r.getRegionId());
-		}
-		sk.printTitle(0, "End");
-	}
-	
-	/**
-	 * Show profile if works.
+	 * Delete route tables in selected VCN by name prefix.
+	 * @param namePrefix
+	 * @param vcnName
 	 * @param profile
+	 * @throws Exception
+	 */
+	public void destroyRouteTableInVcn(String namePrefix, String vcnName, String profile) throws Exception{
+		h.help(namePrefix, "<route-table-name-refix> <vcn-name> <profile>");
+		sk.printTitle(0, "Delete Route Table with Name Prefix "+namePrefix+" in VCN "+vcnName);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilNetwork un = new UtilNetwork();
+		String compId = Config.getMyCompartmentId(profile);
+		String vcnId = un.getVcnIdByName(vn, vcnName, compId);
+		un.deleteRouteTableByNamePrefix(vn, compId, vcnId, namePrefix);
+		sk.printTitle(0, "Route Table with name prefix "+namePrefix+" DESTROYED.");
+	}
+
+	/**
+	 * Delete all SECLIST if matches the name prefix in profile compartment and specified VCN.
+	 * @param namePrefix
+	 * @param vcnName
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void destroySecListInVcn(String namePrefix, String vcnName, String profile) throws Exception{
+		h.help(namePrefix, "<seclist-name-refix> <vcn-name> <profile>");
+		sk.printTitle(0, "Delete Security List with Name Prefix "+namePrefix+" in VCN "+vcnName);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilNetwork un = new UtilNetwork();
+		String compId = Config.getMyCompartmentId(profile);
+		String vcnId = un.getVcnIdByName(vn, vcnName, compId);
+		un.deleteSecurityListByNamePrefix(vn, compId, vcnId, namePrefix);
+		sk.printTitle(0, "SecList with name prefix "+namePrefix+" DESTROYED.");
+	}
+
+	/**
+	 * Delete all VCN if matches the name prefix in profile compartment. Check README.MD for profile setting.
+	 * @param namePrefix
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void nukeVcn(String namePrefix, String profile) throws Exception{
+		h.help(namePrefix, "<vcn-name-refix> <profile>");
+		sk.printTitle(0, "Delete VCN with Name Prefix "+namePrefix);
+		this.purgeVcn(namePrefix, profile);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
+		UtilNetwork un = new UtilNetwork();
+		Compute c = Client.getComputeClient(profile);
+		un.deleteVcnByNamePrefix(lb, vn, c, Config.getMyCompartmentId(profile), namePrefix);
+		sk.printTitle(0, "VCN with name prefix "+namePrefix+" DESTROYED.");
+	}
+
+	/**
+	 * 
+	 * @param namePrefix
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void purgeVcn(String namePrefix, String profile) throws Exception{
+		h.help(namePrefix, "<vcn-name-refix> <profile>");
+		sk.printTitle(0, "Purge VCN vm instances with VCN Name Prefix "+namePrefix);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
+		UtilNetwork un = new UtilNetwork();
+		Compute c = Client.getComputeClient(profile);
+		un.deleteInstanceByVcnNamePrefix(lb, vn, c, Config.getMyCompartmentId(profile), namePrefix);
+		sk.printTitle(0, "VCN with name prefix "+namePrefix+" purged.");
+	}
+
+	// NETWORK END //
+
+	// LOAD BALANCER BEGIN //
+
+	/**
+	 * Change backend drain status for LB.
+	 * @param lbName
+	 * @param backendSetName
+	 * @param backendName
+	 * @param drain
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void changeLbBackendDrain(String lbName, String backendSetName, String backendName, String drain, String profile) throws Exception{
+		h.help(lbName, "<load-balancer-name> <backendset-name> <backend-name> <drain: true|false> <profile>");
+		sk.printTitle(0, "Change "+backendName+" drain to "+drain);
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
+		UtilLoadBalancer ulb = new UtilLoadBalancer();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		String lbId = ulb.getLoadBalancerIdByName(lb, lbName, compartmentId);
+		ulb.changeBackendSetting(lb, lbId, backendSetName, backendName, null,drain.equals("true")?true:false,null,null);
+		sk.printTitle(0, "End");
+	}
+	
+	/**
+	 * Change backend weight for LB.
+	 * @param lbName
+	 * @param backendSetName
+	 * @param backendName
+	 * @param newWeight
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void changeLbBackendWeight(String lbName, String backendSetName, String backendName, String newWeight, String profile) throws Exception{
+		h.help(lbName, "<load-balancer-name> <backendset-name> <backend-name> <new-weight> <profile>");
+		sk.printTitle(0, "Change "+backendName+" to weight "+newWeight);
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
+		UtilLoadBalancer ulb = new UtilLoadBalancer();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		String lbId = ulb.getLoadBalancerIdByName(lb, lbName, compartmentId);
+		ulb.changeBackendSetting(lb, lbId, backendSetName, backendName, Integer.valueOf(newWeight),null,null,null);
+		sk.printTitle(0, "End");
+	}
+
+	/**
+	 * Show all load balancers in a VCN.
+	 * @param vcnName
+	 * @param profile
+	 * @throws NumberFormatException
 	 * @throws IOException
 	 */
-	public void showProfile(String profile) throws IOException {
-		h.help(profile, "<profile-name>");
-		sk.printTitle(0, "Profile " + profile);
-		sk.printResult(0, true, Config.getAuthProvider(profile).getKeyId());
-		sk.printTitle(0, "End");
-	}
-	
-	/**
-	 * Show all timezone.
-	 */
-	public void showTimezone(){
-		TimeZone tz = null;
-		for(String id:TimeZone.getAvailableIDs()){
-			if(id.length()==3 && id.endsWith("T")){
-				continue;
-			}
-			tz = SimpleTimeZone.getTimeZone(id);
-			System.out.println(id+", ["+tz.getRawOffset()/(1000*60*60.0)+"]");
-		}
-		sk.printTitle(0, "End");
-	}
-	
-	/**
-	 * Show recent audit log within N minutes.
-	 * @param lastMinutes
-	 * @param format
-	 * @param mirror
-	 * @param profile
-	 * @throws Exception
-	 */
-	public void showAuditEvent(String lastMinutes, String format, String mirror, String profile) throws Exception{
-		h.help(lastMinutes, "<last-minutes> <format: raw|simple> <mirror: yes|no> <profile-name>");
-		Audit a = Client.getAuditClient(profile);
-		Identity i = Client.getIamClient(profile);
-		UtilAudit ua = new UtilAudit();
-		String except = null;
-		if(mirror.equals("no")){
-			except = "auditEvents";
-		}
-		ua.printAuditEventByDateRange(a, Config.getMyCompartmentId(profile), new Date(System.currentTimeMillis() - Long.parseLong(lastMinutes)*60000), new Date(), format, except==null?null:except.toLowerCase(), i);
-		sk.printTitle(0, "End");
-	}
-	
-	/**
-	 * Show Java system properties.
-	 */
-	public void showSystemProperty() {
-		Properties p = System.getProperties();
-		for (Object k : p.keySet()) {
-			System.out.println("[ " + k + " ] => ( " + p.getProperty((String) k) + " )");
-		}
-		sk.printTitle(0, "End");
-	}
-	
-	/**
-	 * Print 1000 characters by codepoint after start point.
-	 * @param startCodepoint
-	 */
-	public void showChar(String startCodepoint){
-		h.help(startCodepoint, "<start-codepoint>: To print next 1000 char");
-		for(int i=Integer.valueOf(startCodepoint);i<(Integer.valueOf(startCodepoint)+1000);i++){
-			char[] chars = Character.toChars(i);
-			sk.printResult(0, false, i+" => ");
-			for(char c:chars){
-				System.out.println(c);
+	public void showLbInVcn(String vcnName, String profile) throws NumberFormatException, IOException{
+		h.help(vcnName, "<vcn-name> <profile>");
+		sk.printTitle(0, "Show all load balancers in VCN "+vcnName);
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilNetwork un = new UtilNetwork();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		String vcnId = un.getVcnIdByName(vn, vcnName, compartmentId);
+		List<com.oracle.bmc.loadbalancer.model.LoadBalancer> ls = lb.listLoadBalancers(ListLoadBalancersRequest.builder().compartmentId(compartmentId).build()).getItems();
+		for(com.oracle.bmc.loadbalancer.model.LoadBalancer l:ls){
+			for(String subnetId:l.getSubnetIds()){
+				Subnet s = vn.getSubnet(GetSubnetRequest.builder().subnetId(subnetId).build()).getSubnet();
+				if(s.getVcnId().equals(vcnId)){
+					List<String> sids = l.getSubnetIds();
+					List<Subnet> sns = new ArrayList<Subnet>();
+					for(String sid:sids){
+						sns.add(vn.getSubnet(GetSubnetRequest.builder().subnetId(sid).build()).getSubnet());
+					}
+					sk.printResult(1,true, Helper.STAR+" "+Helper.STAR+" LoadBalancer: "+l.getDisplayName()+", "+l.getIpAddresses().get(0)+", "+l.getShapeName()+" @"+sns.get(0).getCidrBlock()+","+sns.get(1).getCidrBlock());
+					for(String lName:l.getListeners().keySet()){
+						sk.printResult(2,true, l.getListeners().get(lName));
+					}
+					for(String backendSetName:l.getBackendSets().keySet()){
+						sk.printResult(2, true, "BackendSet: "+l.getBackendSets().get(backendSetName).getName()+", "+l.getBackendSets().get(backendSetName).getPolicy());
+						List<Backend> ends = l.getBackendSets().get(backendSetName).getBackends();
+						for(Backend be:ends){
+							sk.printResult(3, true, "Backend: "+be.getName()+", "+be.getIpAddress()+", "+be.getPort()+", "+be.getWeight()+", "+(be.getOffline()?"offline":"online"+", "+(be.getBackup()?"backup":"primary")+", "+(be.getDrain()?"drain":"active")));
+						}
+					}
+					break;
+				}
 			}
 		}
 		sk.printTitle(0, "End");
 	}
-	
-	// CREATOR //
-	
-	public void createVolumeInSubnet(String name, String vcnName, String subnetName, String sizeGB, String profile) throws Exception{
-		h.help(name, "<name> <vcn-name> <subnet-name> <size-in-GB> <profile>");
-		Blockstorage bs = Client.getBlockstorageClient(profile);
-		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
-		UtilBlockStorage ubs = new UtilBlockStorage();
-		UtilNetwork un = new UtilNetwork();
-		String compartmentId = Config.getMyCompartmentId(profile);
-		Subnet sn = un.getSubnetByName(vn, subnetName, un.getVcnIdByName(vn, vcnName, compartmentId), compartmentId);
-		Volume v = ubs.createVolume(bs, name, sn.getAvailabilityDomain(), Long.valueOf(sizeGB), compartmentId);
-		h.waitForVolumeStatus(bs, v.getId(), Volume.LifecycleState.Available, "Creating volume", false);
-		
-		this.showVolume(vcnName, profile);
-	}
-	
+
 	/**
-	 * Launch a new VM instance.
-	 * @param name
-	 * @param vcnName
-	 * @param subnetName
-	 * @param imageName
-	 * @param shapeName
-	 * @param userdataFilePath
+	 * Show available load balancer policies.
 	 * @param profile
-	 * @throws Exception
+	 * @throws NumberFormatException
+	 * @throws IOException
 	 */
-	public void createInstance(String name, String vcnName, String subnetName, String imageName, String shapeName, String userdataFilePath, String profile) throws Exception{
-		h.help(name, "<name> <vcn-name> <subnet-name> <image-name> <shape-name> <user-data-file-path> <profile>");
-		sk.printTitle(0, "Creating VM");
-		Compute c = Client.getComputeClient(profile);
-		UtilCompute uc = new UtilCompute();
-		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
-		UtilNetwork un = new UtilNetwork();
-		String compartmentId = Config.getMyCompartmentId(profile);
-		String subnetId = un.getSubnetIdByName(vn, subnetName, un.getVcnIdByName(vn, vcnName, compartmentId), compartmentId);
-		String imageId = uc.getImageIdByName(c, imageName, compartmentId);
-		GetInstanceResponse gis = uc.createVmInstance(c, compartmentId, subnetId, name, imageId, shapeName, Config.publicKeyToString(profile), un.getAdBySubnetId(vn, subnetId), 
-				userdataFilePath.equalsIgnoreCase("null")?null:h.base64EncodeFromFile(userdataFilePath), 
-				Instance.LifecycleState.Running);
-		sk.printResult(0,true,gis.getInstance());
-		if(imageName.toLowerCase().contains("windows")){
-			InstanceCredentials ic = c.getWindowsInstanceInitialCredentials(GetWindowsInstanceInitialCredentialsRequest.builder().instanceId(gis.getInstance().getId()).build()).getInstanceCredentials();
-			sk.printResult(0, true, "Windows Login: "+ic.getUsername()+"/"+ic.getPassword());
+	public void showLbPolicy(String profile) throws NumberFormatException, IOException{
+		h.help(profile, "<profile>");
+		UtilLoadBalancer ulb = new UtilLoadBalancer();
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
+		List<LoadBalancerPolicy> policies = ulb.getAllLoadBalancerPolicy(lb, Config.getMyCompartmentId(profile));
+		sk.printTitle(0, "All Load Balancer Policies");
+		for(LoadBalancerPolicy p:policies){
+			sk.printResult(0, true, p.getName());
 		}
 		sk.printTitle(0, "End");
 	}
 	
+	/**
+	 * Show available load balancer shapes.
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
+	public void showLbShape(String profile) throws NumberFormatException, IOException{
+		h.help(profile, "<profile>");
+		UtilLoadBalancer ulb = new UtilLoadBalancer();
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
+		List<LoadBalancerShape> shapes = ulb.getAllLoadBalancerShapeName(lb, Config.getMyCompartmentId(profile));
+		sk.printTitle(0, "All Load Balancer Shapes");
+		for(LoadBalancerShape s:shapes){
+			sk.printResult(0, true, s.getName());
+		}
+		sk.printTitle(0, "End");
+	}
+
 	/**
 	 * Add a listener to existing load balancer.
 	 * @param name
@@ -992,7 +1156,7 @@ public class Jiu {
 		sk.printTitle(0, "Add Listener "+name+" to Load Balancer "+lbName+" BackendSet "+backendSetName);
 		String compartmentId = Config.getMyCompartmentId(profile);
 		LoadBalancer lb = Client.getLoadBalancerClient(profile);
-		UtilLB ulb = new UtilLB();
+		UtilLoadBalancer ulb = new UtilLoadBalancer();
 		String lbId = ulb.getLoadBalancerIdByName(lb, lbName, compartmentId);
 		ulb.addListenerForLoadBalancer(lb, lbName, protocol, Integer.valueOf(port), lbId, backendSetName);
 		sk.printTitle(0, "End");
@@ -1012,7 +1176,7 @@ public class Jiu {
 		sk.printTitle(0, "Add Instance "+instanceName+" to Load Balancer "+lbName+" BackendSet "+backendSetName);
 		String compartmentId = Config.getMyCompartmentId(profile);
 		LoadBalancer lb = Client.getLoadBalancerClient(profile);
-		UtilLB ulb = new UtilLB();
+		UtilLoadBalancer ulb = new UtilLoadBalancer();
 		Compute c = Client.getComputeClient(profile);
 		UtilCompute uc = new UtilCompute();
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
@@ -1039,7 +1203,7 @@ public class Jiu {
 		h.help(name, "<name> <vcn-name> <load-balancer-name> <policy: ROUND_ROBIN|LEAST_CONNECTIONS|IP_HASH> <health-check-protocol> <health-check-port> <health-check-url-path> <profile>");
 		sk.printTitle(0, "Create Load Balancer Backend Set - "+name);
 		LoadBalancer lb = Client.getLoadBalancerClient(profile);
-		UtilLB ulb = new UtilLB();
+		UtilLoadBalancer ulb = new UtilLoadBalancer();
 		String compartmentId = Config.getMyCompartmentId(profile);
 		ulb.addBackendSetForLoadBalancer(lb, name, ulb.getLoadBalancerIdByName(lb, lbName, compartmentId), 
 				lbPolicy, hcProtocol, Integer.valueOf(hcPort), hcUrlPath);
@@ -1061,146 +1225,254 @@ public class Jiu {
 		sk.printTitle(0, "Create Load Balancer - "+name);
 		LoadBalancer lb = Client.getLoadBalancerClient(profile);
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
-		UtilLB ulb = new UtilLB();
+		UtilLoadBalancer ulb = new UtilLoadBalancer();
 		UtilNetwork un = new UtilNetwork();
 		String compartmentId = Config.getMyCompartmentId(profile);
 		String vcnId = un.getVcnIdByName(vn, vcnName, compartmentId);
 		String subnet1Id = un.getSubnetIdByName(vn, subnet1Name, vcnId, compartmentId);
 		String subnet2Id = un.getSubnetIdByName(vn, subnet2Name, vcnId, compartmentId);
-		ulb.createLoadBalancer(lb, name, shape, subnet1Id, subnet2Id,compartmentId);
+		ulb.createLoadBalancerPublic(lb, name, shape, subnet1Id, subnet2Id,compartmentId);
 		sk.printResult(0, true, "Load Balancer "+name+" created");
 		sk.printTitle(0, "End");
 	}
 	
 	/**
-	 * Create a new VCN by CIDR.
-	 * @param name
-	 * @param cidr
+	 * Delete the LB by name.
+	 * @param lbName
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void createVcn(String name, String cidr, String profile) throws Exception {
-		h.help(name, "<name> <cidr> <profile>");
-		sk.printTitle(0, "Create VCN - "+name);
-		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
-		UtilNetwork un = new UtilNetwork();
-		Vcn vcn = un.createVcn(vn, Config.getMyCompartmentId(profile), name, cidr, "Jiu - "+name);
-		sk.printResult(0, true, vcn.getCidrBlock()+", "+vcn.getVcnDomainName()+", "+vcn.getId()+" CREATED.");
+	public void destroyLbByName(String lbName, String profile) throws Exception{
+		h.help(lbName, "<load-balancer-name> <profile>");
+		sk.printTitle(0, "Delete Load Balancer named "+lbName+" in profile compartment");
+		UtilLoadBalancer ulb = new UtilLoadBalancer();
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
+		String compartmentId = Config.getMyCompartmentId(profile);
+		ulb.deleteLoadBalancerByName(lb, lbName, compartmentId);
 		sk.printTitle(0, "End");
 	}
+
+	// LOAD BALANCER END //
 	
-	// SETUP //
-	
-	public void attachVolume(String volumeName, String instanceName, String profile) throws NumberFormatException, IOException{
-		h.help(volumeName, "<volume-name> <instance-name> <profile>");
-		sk.printTitle(0, "Attach volume "+volumeName+" to "+instanceName);
-		Compute c = Client.getComputeClient(profile);
-		Blockstorage bs = Client.getBlockstorageClient(profile);
-		UtilCompute uc = new UtilCompute();
-		UtilBlockStorage ubs = new UtilBlockStorage();
-		String compartmentId = Config.getMyCompartmentId(profile);
-		Instance i = uc.getInstanceByName(c, instanceName, compartmentId);
-		Volume v = ubs.getVolumeByName(bs, volumeName, i.getAvailabilityDomain(), compartmentId);
-		IScsiVolumeAttachment va = uc.attachVolumeIscsi(c, volumeName+"-"+instanceName, i.getId(), v.getId());
-		String aid = va.getId();
-		VolumeAttachment check = null;
-		while(true){
-			h.wait(1000);
-			check = c.getVolumeAttachment(GetVolumeAttachmentRequest.builder().volumeAttachmentId(aid).build()).getVolumeAttachment();
-			sk.printResult(0,true,check.getLifecycleState().getValue());
-			if(check.getLifecycleState().equals(VolumeAttachment.LifecycleState.Attached)){
-				break;
+	// IAM BEGIN //
+
+	/**
+	 * Show all IAM users.
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void showUser(String profile) throws Exception{
+		h.help(profile, "<profile-name>");
+		Identity id = Client.getIamClient(profile);
+		ListUsersResponse res = id.listUsers(
+				ListUsersRequest.builder().compartmentId(Config.getConfigFileReader(profile).get("tenancy")).build()
+				);
+		sk.printTitle(0, "All IAM Users");
+		for (User u:res.getItems()){
+			sk.printResult(0, true, u.getName()+", "+u.getLifecycleState().getValue()+", "+u.getId());
+			List<ApiKey> ak = id.listApiKeys(ListApiKeysRequest.builder().userId(u.getId()).build()).getItems();
+			for(ApiKey k:ak){
+				sk.printResult(1, true, k.getKeyValue());
+				
 			}
 		}
-		sk.printTitle(0,"Run following scripts on instance "+instanceName+" to connect the volume");
-		va = (IScsiVolumeAttachment) c.getVolumeAttachment(GetVolumeAttachmentRequest.builder().volumeAttachmentId(aid).build()).getVolumeAttachment();
-		this.printISCSIInfo(va);
+		sk.printTitle(0, "End");
 	}
-	
-	private void printISCSIInfo(IScsiVolumeAttachment va){
-		String iqn = va.getIqn();
-		String ipv4 = va.getIpv4();
-		String port = va.getPort()==null?"3260":va.getPort().toString();
-		StringBuffer script = new StringBuffer();
-		script.append("sudo iscsiadm -m node -o new -T "+iqn+" -p "+ipv4+":"+port+"\n");
-		script.append("sudo iscsiadm -m node -T "+iqn+" -o update -n node.startup -v automatic\n");
-		script.append("sudo iscsiadm -m node -T "+iqn+" -p "+ipv4+":"+port+" -l\n");
-		String output = new String(script);
-		System.out.println(output);
-	}
-	
-	
+
+	// IAM END //
+
+	// AUDIT BEGIN //
+
 	/**
-	 * Send actions to vm instance.
-	 * @param name
-	 * @param action
+	 * Show recent audit log within N minutes.
+	 * @param lastMinutes
+	 * @param format
+	 * @param mirror
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void vmInstanceActionByName(String name, String action, String profile) throws Exception{
-		h.help(name, "<name> <action: start|stop|reset|softreset> <profile>");
-		sk.printTitle(0, "Executing VM instance action - "+action+" for "+name);
-		Compute c = Client.getComputeClient(profile);
-		UtilCompute uc = new UtilCompute();
-		String compartmentId = Config.getMyCompartmentId(profile);
-		String instanceId = uc.getInstanceIdByName(c, name, compartmentId);
-		c.instanceAction(InstanceActionRequest.builder()
-				.instanceId(instanceId)
-				.action(action).build()).getInstance();
-		Instance.LifecycleState state = null;
-		if(action.equals("start")||action.equals("reset")||action.equals("softreset")){
-			state = Instance.LifecycleState.Running;
+	public void showAuditEvent(String lastMinutes, String format, String mirror, String profile) throws Exception{
+		h.help(lastMinutes, "<last-minutes> <format: raw|simple> <mirror: yes|no> <profile-name>");
+		Audit a = Client.getAuditClient(profile);
+		Identity i = Client.getIamClient(profile);
+		UtilAudit ua = new UtilAudit();
+		String except = null;
+		if(mirror.equals("no")){
+			except = "auditEvents";
 		}
-		else if(action.equals("stop")){
-			state = Instance.LifecycleState.Stopped;
+		ua.printAuditEventByDateRange(a, Config.getMyCompartmentId(profile), new Date(System.currentTimeMillis() - Long.parseLong(lastMinutes)*60000), new Date(), format, except==null?null:except.toLowerCase(), i);
+		sk.printTitle(0, "End");
+	}
+
+	// AUDIT END //
+
+	// COMMON BEGIN //
+
+	/**
+	 * List all actions available for compute service.
+	 */
+	public void showActionCompute(){
+		this.showAction(ComputeClient.class);
+	}
+	
+	/**
+	 * List all actions available for block storage service.
+	 */
+	public void showActionBlockstorage(){
+		this.showAction(BlockstorageClient.class);
+	}
+	
+	/**
+	 * List all actions available for network service.
+	 */
+	public void showActionNetwork(){
+		this.showAction(VirtualNetworkClient.class);
+	}
+	
+	/**
+	 * List all actions available for IAM service.
+	 */
+	public void showActionIam(){
+		this.showAction(IdentityClient.class);
+	}
+	
+	/**
+	 * List all actions available for audit service.
+	 */
+	public void showActionAudit(){
+		this.showAction(AuditClient.class);
+	}
+	
+	/**
+	 * List all actions available for object storage service.
+	 */
+	public void showActionObjectStorage(){
+		this.showAction(ObjectStorageClient.class);
+	}
+	
+	/**
+	 * List all actions available for load balancing service.
+	 */
+	public void showActionLoadbalancer(){
+		this.showAction(LoadBalancerClient.class);
+	}
+
+	/**
+	 * Show AD.
+	 * @param profile
+	 * @throws IOException
+	 */
+	public void showAd(String profile) throws IOException{
+		h.help(profile, "<profilet>");
+		sk.printTitle(0, "Bare Metal AD in "+Config.getConfigFileReader(profile).get("region"));
+		Identity id = Client.getIamClient(profile);
+		List<AvailabilityDomain> ads = id.listAvailabilityDomains(ListAvailabilityDomainsRequest.builder().compartmentId(Config.getMyCompartmentId(profile)).build()).getItems();
+		for(AvailabilityDomain ad:ads){
+			sk.printResult(0, true, ad.getName());
 		}
-		h.waitForInstanceStatus(c, instanceId, state, "waiting", false);
+		sk.printTitle(0, "End");
+	}
+
+	/**
+	 * Encode plain text base64.
+	 * @param plainText
+	 */
+	public void base64Encode(String plainText){
+		h.help(plainText, "<plain-text>");
+		System.out.println(h.base64Encode(plainText));
+	}
+	
+	/**
+	 * Decode plain text from base64.
+	 * @param base64
+	 */
+	public void base64Decode(String base64){
+		h.help(base64, "<base64>");
+		System.out.println(h.base64Decode(base64));
+	}
+	
+	/**
+	 * Encode file content to base64.
+	 * @param path
+	 */
+	public void base64EncodeFromFile(String path){
+		h.help(path, "<path>");
+		h.base64EncodeFromFile(path);
+	}
+
+	/**
+	 * Show client config.
+	 * @throws IOException 
+	 * @throws NumberFormatException 
+	 */
+	public void showClientConfig(String profile) throws NumberFormatException, IOException{
+		h.help(profile, "<profile-name>");
+		ClientConfiguration cc = Config.getClientConfig(profile);
+		sk.printTitle(0, "Current Client Config");
+		sk.printResult(0, true, "Connection Timeout (ms): "+cc.getConnectionTimeoutMillis());
+		sk.printResult(0, true, "Read Timeout (ms): "+cc.getReadTimeoutMillis());
+		sk.printResult(0, true, "Max Async Threads: "+cc.getMaxAsyncThreads());
+		sk.printTitle(0, "End");
+	}
+
+	/**
+	 * Show all regions.
+	 */
+	public void showRegionCode(){
+		sk.printTitle(0, "Bare Metal Regions");
+		int i=0;
+		for(Region r:Region.values()){
+			sk.printResult(0, true, "("+(++i)+") "+r.getRegionId());
+		}
 		sk.printTitle(0, "End");
 	}
 	
 	/**
-	 * Change backend drain status for LB.
-	 * @param lbName
-	 * @param backendSetName
-	 * @param backendName
-	 * @param drain
+	 * Show profile if works.
+	 * @param profile
+	 * @throws IOException
+	 */
+	public void showProfile(String profile) throws IOException {
+		h.help(profile, "<profile-name>");
+		sk.printTitle(0, "Profile " + profile);
+		sk.printResult(0, true, Config.getAuthProvider(profile).getKeyId());
+		sk.printTitle(0, "End");
+	}
+
+	// COMMON END //
+
+	// DEMO BEGIN //
+
+	/**
+	 * Open SSH for bastion seclist.
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void changeLbBackendDrain(String lbName, String backendSetName, String backendName, String drain, String profile) throws Exception{
-		h.help(lbName, "<load-balancer-name> <backendset-name> <backend-name> <drain: true|false> <profile>");
-		sk.printTitle(0, "Change "+backendName+" drain to "+drain);
-		LoadBalancer lb = Client.getLoadBalancerClient(profile);
-		UtilLB ulb = new UtilLB();
-		String compartmentId = Config.getMyCompartmentId(profile);
-		String lbId = ulb.getLoadBalancerIdByName(lb, lbName, compartmentId);
-		ulb.changeBackendSetting(lb, lbId, backendSetName, backendName, null,drain.equals("true")?true:false,null,null);
-		sk.printTitle(0, "End");
+	// TODO Dynamic.
+	public void openBastionSsh(String profile) throws Exception{
+		h.help(profile, "<profile-name>");
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilNetwork un =  new UtilNetwork();
+		String ocid = Config.getConfigFileReader(profile).get("bastionseclist");
+		un.secListAddIngressBastionTcpPort(vn, ocid,"22");
+		sk.printResult(0, true, "SSH for Bastion seclist "+ocid+" opened.");
 	}
 	
 	/**
-	 * Change backend weight for LB.
-	 * @param lbName
-	 * @param backendSetName
-	 * @param backendName
-	 * @param newWeight
+	 * Close SSH for bastion seclist.
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void changeLbBackendWeight(String lbName, String backendSetName, String backendName, String newWeight, String profile) throws Exception{
-		h.help(lbName, "<load-balancer-name> <backendset-name> <backend-name> <new-weight> <profile>");
-		sk.printTitle(0, "Change "+backendName+" to weight "+newWeight);
-		LoadBalancer lb = Client.getLoadBalancerClient(profile);
-		UtilLB ulb = new UtilLB();
-		String compartmentId = Config.getMyCompartmentId(profile);
-		String lbId = ulb.getLoadBalancerIdByName(lb, lbName, compartmentId);
-		ulb.changeBackendSetting(lb, lbId, backendSetName, backendName, Integer.valueOf(newWeight),null,null,null);
-		sk.printTitle(0, "End");
+	// TODO Dynamic
+	public void closeBastionSsh(String profile) throws Exception{
+		h.help(profile, "<profile-name>");
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilNetwork un =  new UtilNetwork();
+		String ocid = Config.getConfigFileReader(profile).get("bastionseclist");
+		un.secListRemoveIngressBastionTcpPort(vn, ocid,"22");
+		sk.printResult(0, true, "SSH for Bastion seclist "+ocid+" closed.");
 	}
-	
-	
-	
-	
+
 	/**
 	 * Create several public accessible vm instances in a new VCN. Shape: VM.Standard1.1
 	 * @param namePrefix
@@ -1208,10 +1480,10 @@ public class Jiu {
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void demoCreateVmGroup(String namePrefix, String count, String profile) throws Exception{
-		h.help(namePrefix, "<vm-name-prefix> <vm-count> <profile-name>");
+	public void demoCreateInstanceGroupInfra(String namePrefix, String count, String userdataFilePath, String profile) throws Exception{
+		h.help(namePrefix, "<demo-name-prefix> <instance-count> <userdata-file-path> <profile-name>");
 		String prefix = namePrefix!=null?namePrefix:"bgltest";
-		sk.printTitle(0, "Create VM group - "+prefix);
+		sk.printTitle(0, "Create instances group - "+prefix);
 		Identity id = Client.getIamClient(profile);
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
 		UtilIam ui = new UtilIam();
@@ -1256,24 +1528,24 @@ public class Jiu {
 		}
 		String[] instanceIds = new String[cnt];
 		for(int i=0;i<cnt;i++){
-			instanceIds[i] = uc.createVmInstance(c, compartmentId, pubSubnets[0].getId(), 
+			instanceIds[i] = uc.createInstance(c, compartmentId, pubSubnets[0].getId(), 
 				prefix+"node"+i, vmImage.getId(), "VM.Standard1.1", 
-				Config.publicKeyToString(profile), ads.get(0).getName(), h.base64EncodeFromFile(Config.getConfigFileReader(profile).get("bastion_user_data")), Instance.LifecycleState.Provisioning).getInstance().getId();
+				Config.publicKeyToString(profile), ads.get(0).getName(), userdataFilePath.equalsIgnoreCase("null")?null:h.base64EncodeFromFile(userdataFilePath), Instance.LifecycleState.Provisioning).getInstance().getId();
 		}
 		//this.showVcn(prefix+"vcn", profile);
 		sk.printResult(0, true, "Waiting running status");
 		h.silentWaitForInstanceStatus(c, instanceIds, Instance.LifecycleState.Running, false);
 		sk.printTitle(0, "End");
 	}
-	
+
 	/**
 	 * Create a simple infra only includes 1 VCN, 1 Subnet, 1 Bastion.
 	 * @param namePrefix
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void demoCreateSingleBastionInfra(String namePrefix, String profile) throws Exception{
-		h.help(namePrefix, "<resource-name-prefix> <profile-name>");
+	public void demoCreateSingleBastionInfra(String namePrefix, String userdataFilePath, String profile) throws Exception{
+		h.help(namePrefix, "<resource-name-prefix> <user-data-file-path> <profile-name>");
 		String prefix = namePrefix!=null?namePrefix:"bgltest";
 		sk.printTitle(0, "Create Infrastructure - "+prefix);
 		Identity id = Client.getIamClient(profile);
@@ -1317,16 +1589,18 @@ public class Jiu {
 				break;
 			}
 		}
-		uc.createVmInstance(c, compartmentId, pubSubnets[0].getId(), 
+		uc.createInstance(c, compartmentId, pubSubnets[0].getId(), 
 				prefix+"bastion", vmImage.getId(), "VM.Standard1.1", 
-				Config.publicKeyToString(profile), ads.get(0).getName(), h.base64EncodeFromFile(Config.getConfigFileReader(profile).get("bastion_user_data")), Instance.LifecycleState.Running);
+				Config.publicKeyToString(profile), ads.get(0).getName(),
+				userdataFilePath.equalsIgnoreCase("null")?null:h.base64EncodeFromFile(userdataFilePath), 
+				Instance.LifecycleState.Running);
 		this.showVcn(prefix+"vcn", profile);
 		sk.printTitle(0, "End");
 	}
-	
+
 	/**
 	 * Create a new infrastructure of simple web servers for demo purpose.
-	 * 
+	 * Subnets design:
 	 * [Bastion]-[LB0]--[LB1]	Public
 	 *  |----------|------|  
 	 * [ ]-------[Web0]-[Web1]	Web Internal
@@ -1349,10 +1623,10 @@ public class Jiu {
 	 *  h. subnosql1 => nosql seclist.
 	 *  i. subnosql2 => nosql seclist.
 	 * 8. One Oracle Linux 7.3 Bastion. Public 
-	 * 9. Three Oracle Linux 7.3 NoSQL DB. Private
+	 * 9. Three Oracle Linux 7.3 NoSQL DB. Private //TODO
 	 * 10. Two Oracle Linux 7.3 Web Server. Private.
 	 * 11. One Load Balancer.
-	 * 12. Registering three Web Servers to Load Balancer.
+	 * 12. Registering 2 Web Servers to Load Balancer.
 	 * @param profile
 	 * @throws Exception
 	 */
@@ -1441,21 +1715,21 @@ public class Jiu {
 			}
 		}
 		GetInstanceResponse 
-			bastionGis = uc.createVmInstance(c, compartmentId, pubSubnets[0].getId(), 
+			bastionGis = uc.createInstance(c, compartmentId, pubSubnets[0].getId(), 
 				prefix+"bastion", vmImage.getId(), "VM.Standard1.1", 
 				Config.publicKeyToString(profile), ads.get(0).getName(), h.base64EncodeFromFile(Config.getConfigFileReader(profile).get("bastion_user_data")), Instance.LifecycleState.Provisioning);
 		// 2 Web Servers.
 		GetInstanceResponse[] webGis = new GetInstanceResponse[2];
 		for(int i=0;i<2;i++){
-			webGis[i]= uc.createVmInstance(c, compartmentId, priSubnets[i+1].getId(), 
+			webGis[i]= uc.createInstance(c, compartmentId, priSubnets[i+1].getId(), 
 				prefix+"web"+i, vmImage.getId(), "VM.Standard1.1", 
 				Config.publicKeyToString(profile), ads.get(i+1).getName(), h.base64EncodeFromFile(Config.getConfigFileReader(profile).get("webserver"+(i)+"_user_data")), Instance.LifecycleState.Provisioning);
 				//Config.publicKeyToString(profile), ads.get(i).getName(), null, Instance.LifecycleState.Provisioning);	
 		}
 		// 1 Load Balancer.
 		LoadBalancer lb = Client.getLoadBalancerClient(profile);
-		UtilLB ulb = new UtilLB();
-		String lbId = ulb.createLoadBalancer(lb, prefix+"lb", "100Mbps", pubSubnets[1].getId(), pubSubnets[2].getId(), compartmentId).getLoadBalancerId();
+		UtilLoadBalancer ulb = new UtilLoadBalancer();
+		String lbId = ulb.createLoadBalancerPublic(lb, prefix+"lb", "100Mbps", pubSubnets[1].getId(), pubSubnets[2].getId(), compartmentId).getLoadBalancerId();
 		String lbLocationInfo = pubSubnets[1].getCidrBlock()+"@"+pubSubnets[1].getAvailabilityDomain()+", "+pubSubnets[2].getCidrBlock()+"@"+pubSubnets[2].getAvailabilityDomain();
 		String backendSetName = prefix+"lbbes";
 		
@@ -1512,168 +1786,59 @@ public class Jiu {
 		//this.showVcn(prefix+"vcn", profile);
 		sk.printTitle(0, "Infrastructure - "+prefix+" created.");
 	}
-	
-	/**
-	 * Open SSH for bastion seclist.
-	 * @param profile
-	 * @throws Exception
-	 */
-	public void openBastionSsh(String profile) throws Exception{
-		h.help(profile, "<profile-name>");
-		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
-		UtilNetwork un =  new UtilNetwork();
-		String ocid = Config.getConfigFileReader(profile).get("bastionseclist");
-		un.secListAddIngressBastionTcpPort(vn, ocid,"22");
-		sk.printResult(0, true, "SSH for Bastion seclist "+ocid+" opened.");
+
+	// DEMO END //
+
+	// FUN BEGIN //
+
+	public void showCloudProduct(){
+		Fullstacking fs = new Fullstacking();
+		fs.printAllOracleCloudProduct();
 	}
 	
 	/**
-	 * Close SSH for bastion seclist.
-	 * @param profile
-	 * @throws Exception
+	 * Show all timezone.
 	 */
-	public void closeBastionSsh(String profile) throws Exception{
-		h.help(profile, "<profile-name>");
-		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
-		UtilNetwork un =  new UtilNetwork();
-		String ocid = Config.getConfigFileReader(profile).get("bastionseclist");
-		un.secListRemoveIngressBastionTcpPort(vn, ocid,"22");
-		sk.printResult(0, true, "SSH for Bastion seclist "+ocid+" closed.");
-	}
-	
-	// DESTROYER //
-	
-	public void destroyVolume(String volumeName, String availabilityDomain, String profile) throws Exception{
-		h.help(volumeName, "<volume-name> <availability-domain> <profile>");
-		sk.printTitle(0, "Delete volume named "+volumeName);
-		String compartmentId = Config.getMyCompartmentId(profile);
-		Blockstorage bs = Client.getBlockstorageClient(profile);
-		UtilBlockStorage ubs = new UtilBlockStorage();
-		Volume v = ubs.getVolumeByName(bs, volumeName, availabilityDomain, compartmentId);
-		ubs.killVolumeById(bs, v.getId());
-		h.waitForVolumeStatus(bs, v.getId(), Volume.LifecycleState.Terminated, "Removing volume", true);
-		sk.printTitle(0, "End");
-	}
-	
-	public void destroyLbByName(String lbName, String profile) throws Exception{
-		h.help(lbName, "<load-balancer-name> <profile>");
-		sk.printTitle(0, "Delete Load Balancer named "+lbName+" in profile compartment");
-		UtilLB ulb = new UtilLB();
-		LoadBalancer lb = Client.getLoadBalancerClient(profile);
-		String compartmentId = Config.getMyCompartmentId(profile);
-		ulb.deleteLoadBalancerByName(lb, lbName, compartmentId);
-		sk.printTitle(0, "End");
-	}
-	
-	/**
-	 * Delete instances in selected VCN by name prefix.
-	 * @param namePrefix
-	 * @param vcnName
-	 * @param profile
-	 * @throws Exception
-	 */
-	public void destroyInstanceInVcn(String namePrefix, String vcnName, String profile) throws Exception{
-		h.help(namePrefix, "<instance-name-refix> <vcn-name> <profile>");
-		sk.printTitle(0, "Delete Instances with Name Prefix "+namePrefix+" in VCN "+vcnName);
-		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
-		UtilNetwork un = new UtilNetwork();
-		String compartmentId = Config.getMyCompartmentId(profile);
-		String vcnId = un.getVcnIdByName(vn, vcnName, compartmentId);
-		Compute c = Client.getComputeClient(profile);
-		UtilCompute uc = new UtilCompute();
-		List<Instance> instances = c.listInstances(ListInstancesRequest.builder().compartmentId(compartmentId).build()).getItems();
-		TreeMap<String,String> snToInstance = new TreeMap<String,String>(); 
-		for(Instance vm:instances){
-			if(vm.getDisplayName().startsWith(namePrefix) && !vm.getLifecycleState().getValue().equals(Instance.LifecycleState.Terminated.getValue())){
-				List<VnicAttachment> vnicAttachments = c.listVnicAttachments(ListVnicAttachmentsRequest.builder().compartmentId(compartmentId).instanceId(vm.getId()).build()).getItems();
-				for(VnicAttachment va:vnicAttachments){
-					snToInstance.put(va.getSubnetId(), vm.getId());
-				}
+	public void showTimezone(){
+		TimeZone tz = null;
+		for(String id:TimeZone.getAvailableIDs()){
+			if(id.length()==3 && id.endsWith("T")){
+				continue;
 			}
+			tz = SimpleTimeZone.getTimeZone(id);
+			System.out.println(id+", ["+tz.getRawOffset()/(1000*60*60.0)+"]");
 		}
-		List<Subnet> sns = vn
-				.listSubnets(ListSubnetsRequest.builder().compartmentId(compartmentId).vcnId(vcnId).build())
-				.getItems();
-		for(Subnet sn:sns){
-			for(String snId:snToInstance.keySet()){
-				if(snId.equals(sn.getId())){
-					uc.killInstanceById(c, compartmentId, snToInstance.get(snId));
-				}
-			}
+		sk.printTitle(0, "End");
+	}
+
+	/**
+	 * Show Java system properties.
+	 */
+	public void showSystemProperty() {
+		Properties p = System.getProperties();
+		for (Object k : p.keySet()) {
+			System.out.println("[ " + k + " ] => ( " + p.getProperty((String) k) + " )");
 		}
 		sk.printTitle(0, "End");
 	}
 	
 	/**
-	 * Delete route tables in selected VCN by name prefix.
-	 * @param namePrefix
-	 * @param vcnName
-	 * @param profile
-	 * @throws Exception
+	 * Print 1000 characters by codepoint after start point.
+	 * @param startCodepoint
 	 */
-	public void destroyRouteTableInVcn(String namePrefix, String vcnName, String profile) throws Exception{
-		h.help(namePrefix, "<route-table-name-refix> <vcn-name> <profile>");
-		sk.printTitle(0, "Delete Route Table with Name Prefix "+namePrefix+" in VCN "+vcnName);
-		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
-		UtilNetwork un = new UtilNetwork();
-		String compId = Config.getMyCompartmentId(profile);
-		String vcnId = un.getVcnIdByName(vn, vcnName, compId);
-		un.deleteRouteTableByNamePrefix(vn, compId, vcnId, namePrefix);
-		sk.printTitle(0, "Route Table with name prefix "+namePrefix+" DESTROYED.");
+	public void showChar(String startCodepoint){
+		h.help(startCodepoint, "<start-codepoint>: To print next 1000 char");
+		for(int i=Integer.valueOf(startCodepoint);i<(Integer.valueOf(startCodepoint)+1000);i++){
+			char[] chars = Character.toChars(i);
+			sk.printResult(0, false, i+" => ");
+			for(char c:chars){
+				System.out.println(c);
+			}
+		}
+		sk.printTitle(0, "End");
 	}
-	
-	/**
-	 * Delete all SECLIST if matches the name prefix in profile compartment and specified VCN.
-	 * @param namePrefix
-	 * @param vcnName
-	 * @param profile
-	 * @throws Exception
-	 */
-	public void destroySecListInVcn(String namePrefix, String vcnName, String profile) throws Exception{
-		h.help(namePrefix, "<seclist-name-refix> <vcn-name> <profile>");
-		sk.printTitle(0, "Delete Security List with Name Prefix "+namePrefix+" in VCN "+vcnName);
-		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
-		UtilNetwork un = new UtilNetwork();
-		String compId = Config.getMyCompartmentId(profile);
-		String vcnId = un.getVcnIdByName(vn, vcnName, compId);
-		un.deleteSecurityListByNamePrefix(vn, compId, vcnId, namePrefix);
-		sk.printTitle(0, "SecList with name prefix "+namePrefix+" DESTROYED.");
-	}
-	
-	/**
-	 * Delete all VCN if matches the name prefix in profile compartment. Check README.MD for profile setting.
-	 * @param namePrefix
-	 * @param profile
-	 * @throws Exception
-	 */
-	public void nukeVcn(String namePrefix, String profile) throws Exception{
-		h.help(namePrefix, "<vcn-name-refix> <profile>");
-		sk.printTitle(0, "Delete VCN with Name Prefix "+namePrefix);
-		this.nullrayVcn(namePrefix, profile);
-		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
-		LoadBalancer lb = Client.getLoadBalancerClient(profile);
-		UtilNetwork un = new UtilNetwork();
-		Compute c = Client.getComputeClient(profile);
-		un.deleteVcnByNamePrefix(lb, vn, c, Config.getMyCompartmentId(profile), namePrefix);
-		sk.printTitle(0, "VCN with name prefix "+namePrefix+" DESTROYED.");
-	}
-	
-	/**
-	 * 
-	 * @param namePrefix
-	 * @param profile
-	 * @throws Exception
-	 */
-	public void nullrayVcn(String namePrefix, String profile) throws Exception{
-		h.help(namePrefix, "<vcn-name-refix> <profile>");
-		sk.printTitle(0, "Nullray VCN vm instances with VCN Name Prefix "+namePrefix);
-		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
-		LoadBalancer lb = Client.getLoadBalancerClient(profile);
-		UtilNetwork un = new UtilNetwork();
-		Compute c = Client.getComputeClient(profile);
-		un.deleteVcnVmInstanceByVcnNamePrefix(lb, vn, c, Config.getMyCompartmentId(profile), namePrefix);
-		sk.printTitle(0, "VCN with name prefix "+namePrefix+" nullrayfied.");
-	}
+
+	// FUN END //
 	
 	/**
 	 * REST call. 
@@ -1710,20 +1875,23 @@ public class Jiu {
 			sk.printResult(0, true, "SUB-COMMANDS:");
 			TreeSet<String> ts = new TreeSet<String>();
 			StringBuffer sb = null;
+			/*
 			Method[] allMethods = Jiu.class.getDeclaredMethods();
 			ArrayList<Method> methods = new ArrayList<Method>();
 			for (Method m : allMethods) {
 				if (Modifier.isPublic(m.getModifiers()) && !m.getName().equals("test")) {
 					methods.add(m);
 				}
-			}
+			}*/
+			ArrayList<Method> methods = Helper.getJiuTools();
 			String mn = null;
 			for (Method m : methods) {
 				sb = new StringBuffer();
 				mn = m.getName();
+				/*
 				if (SKIPPED_METHODS.contains(mn)) {
 					continue;
-				}
+				}*/
 				sb.append(mn + ": ");
 				int parameterCount = m.getParameterTypes().length;
 				for (int i = 0; i < parameterCount; i++) {
@@ -1810,7 +1978,7 @@ public class Jiu {
 				return;
 			}
 		}
-		Helper.search(args[0]);
+		new Helper().search(args[0]);
 		return;
 	}
 
