@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -450,7 +451,38 @@ public class Jiu {
 	// OBJECT STORAGE END //
 
 	// COMPUTE BEGIN //
-
+	
+	/**
+	 * Show all active instances with name prefix.
+	 * @param namePrefix
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
+	public void showInstanceByNamePrefix(String namePrefix, String profile) throws NumberFormatException, IOException{
+		h.help(namePrefix, "<name-prefix> <profile>");
+		sk.printTitle(0, "Active instances name start with "+namePrefix);
+		Compute c = Client.getComputeClient(profile);
+		UtilCompute uc = new UtilCompute();
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilNetwork un = new UtilNetwork();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		Hashtable<Vnic,Instance> instances = un.getAllInstance(vn, c, Instance.LifecycleState.Terminated, compartmentId);
+		for(Vnic nic:instances.keySet()){
+			String dn = instances.get(nic).getDisplayName();
+			if(dn.startsWith(namePrefix)){
+			sk.printResult(2, true, (dn.toLowerCase().contains("bastion")?Helper.FIST:Helper.STAR)+"  Machine: "
+					+dn+", "
+					+nic.getPrivateIp()+", "
+					+nic.getPublicIp()+", "
+					+instances.get(nic).getShape()+", "
+					+uc.getImageNameById(c,instances.get(nic).getImageId())+", "
+					+instances.get(nic).getLifecycleState().getValue());
+			}
+		}
+		sk.printTitle(0, "End");
+	}
+	
 	/**
 	 * Send actions to instance.
 	 * @param name
@@ -839,6 +871,10 @@ public class Jiu {
 		sk.printTitle(0, "End");
 	}
 
+	public void showInstance(String name, String profile){
+		
+	}
+	
 	/**
 	 * Show all VCN details by profile compartment.
 	 * @param profile

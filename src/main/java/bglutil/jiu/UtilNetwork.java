@@ -226,7 +226,7 @@ public class UtilNetwork extends UtilMain {
 	}
 	
 	/**
-	 * Get all instances which are NOT in the designated status.
+	 * Get all instances which are NOT in the designated status, within a subnet.
 	 * @param vn
 	 * @param c
 	 * @param subnet
@@ -244,6 +244,29 @@ public class UtilNetwork extends UtilMain {
 					if(v.getSubnetId().equals(subnet.getId())){
 						vnicToInstance.put(v, i);
 					}
+				}
+			}
+		}
+		return vnicToInstance;
+	}
+	
+	/**
+	 * Get all instances which are NOT in the designated status.
+	 * @param vn
+	 * @param c
+	 * @param state
+	 * @param compartmentId
+	 * @return
+	 */
+	public Hashtable<Vnic,Instance> getAllInstance(VirtualNetwork vn, Compute c,  Instance.LifecycleState state, String compartmentId){
+		Hashtable<Vnic,Instance> vnicToInstance = new Hashtable<Vnic,Instance>();
+		UtilCompute uc = new UtilCompute();
+		List<Instance> instances = c.listInstances(ListInstancesRequest.builder().compartmentId(compartmentId).build()).getItems();
+		for(Instance i:instances){
+			if(!i.getLifecycleState().equals(state)){
+				List<Vnic> vnics = uc.getVnicByInstanceId(c, vn, i.getId(), compartmentId);
+				for(Vnic v:vnics){
+						vnicToInstance.put(v, i);
 				}
 			}
 		}
