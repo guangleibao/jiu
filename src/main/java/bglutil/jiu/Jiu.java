@@ -459,18 +459,19 @@ public class Jiu {
 	 * @throws NumberFormatException
 	 * @throws IOException
 	 */
-	public void showInstanceByNamePrefix(String namePrefix, String profile) throws NumberFormatException, IOException{
+	public void showCostResource(String namePrefix, String profile) throws NumberFormatException, IOException{
 		h.help(namePrefix, "<name-prefix> <profile>");
-		sk.printTitle(0, "Active instances name start with "+namePrefix);
+		sk.printTitle(0, "Active resources name start with "+namePrefix);
 		Compute c = Client.getComputeClient(profile);
 		UtilCompute uc = new UtilCompute();
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
 		UtilNetwork un = new UtilNetwork();
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
 		String compartmentId = Config.getMyCompartmentId(profile);
 		Hashtable<Vnic,Instance> instances = un.getAllInstance(vn, c, Instance.LifecycleState.Terminated, compartmentId);
 		for(Vnic nic:instances.keySet()){
 			String dn = instances.get(nic).getDisplayName();
-			if(dn.startsWith(namePrefix)){
+			if(namePrefix.equals("?") || dn.startsWith(namePrefix)){
 			sk.printResult(2, true, (dn.toLowerCase().contains("bastion")?Helper.FIST:Helper.STAR)+"  Machine: "
 					+dn+", "
 					+nic.getPrivateIp()+", "
@@ -478,6 +479,12 @@ public class Jiu {
 					+instances.get(nic).getShape()+", "
 					+uc.getImageNameById(c,instances.get(nic).getImageId())+", "
 					+instances.get(nic).getLifecycleState().getValue());
+			}
+		}
+		List<com.oracle.bmc.loadbalancer.model.LoadBalancer> ls = lb.listLoadBalancers(ListLoadBalancersRequest.builder().compartmentId(compartmentId).build()).getItems();
+		for(com.oracle.bmc.loadbalancer.model.LoadBalancer l:ls){
+			if(namePrefix.equals("?") || l.getDisplayName().startsWith(namePrefix)){
+				sk.printResult(1,true, Helper.STAR+" "+Helper.STAR+" LoadBalancer: "+l.getDisplayName()+", "+l.getIpAddresses().get(0)+", "+l.getShapeName());	
 			}
 		}
 		sk.printTitle(0, "End");

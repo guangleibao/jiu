@@ -46,6 +46,7 @@ public class OracleCloudProduct {
 	}
 	public String toString(){
 		return "NAME: =[ "+this.name+" ]=\n"
+				+"\tALIAS: "+this.alias+"\n"
 				+"\tCATEGORY: < "+this.cat+" >\n"
 				+"\tDOCUMENT: "+this.doc+"\n"
 				+"DESCRIPTION: "+this.desc;
