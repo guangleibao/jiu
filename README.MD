@@ -5,7 +5,7 @@
 + First time user please check [Oracle official site](https://docs.us-phoenix-1.oraclecloud.com/Content/API/SDKDocs/javasdk.htm) for Bare Metal Cloud Java SDK download, configure and install.
 + Current SDK [download page](https://github.com/oracle/bmcs-java-sdk/releases).
 
-Sample config file **`~/.oraclebmc/config`** to run `Jiu`:
+Config file **`~/.oraclebmc/config`** properties descriptions to run `Jiu`:
 
 		[DEFAULT]
 		tenancy=<tenancy_ocid>
@@ -30,6 +30,9 @@ Sample config file **`~/.oraclebmc/config`** to run `Jiu`:
 
 		[ASHBURN]
 		...
+
+
++ Sample config file provided `config-sample`.
 
 + [Download Maven](https://maven.apache.org/download.cgi).
 
