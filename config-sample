@@ -9,9 +9,7 @@ namespace=yournamespace
 bastionseclist=ocid1.securitylist.oc1.sssssssssssssssss
 connectiontimeout=6000
 readtimeout=240000
-# public key file used to be passed to instances launched by Jiu.
 public_key_file=~/.ssh/demo_rsa.pub
-# bootstrap scripts used to be passed to Linux instances launched by Jiu.
 bastion_user_data=~/demo/bootstrap-bastion.sh
 webserver_user_data=~/demo/bootstrap-webserver.sh
 webserver0_user_data=~/demo/bootstrap-webserver0.sh

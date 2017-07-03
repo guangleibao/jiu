@@ -32,7 +32,7 @@ Config file **`~/.oraclebmc/config`** properties descriptions to run `Jiu`:
 		...
 
 
-+ Sample config file provided `config-sample`.
++ Sample config file provided [config-sample](https://github.com/guangleibao/jiu/blob/master/config-sample).
 
 + [Download Maven](https://maven.apache.org/download.cgi).
 
