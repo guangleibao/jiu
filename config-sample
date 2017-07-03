@@ -1,0 +1,37 @@
+[DEFAULT]
+tenancy=ocid1.tenancy.oc1..ttttttttttttttt
+user=ocid1.user.oc1..uuuuuuuuuuuuu
+fingerprint=3f:................:55
+key_file=~/.oraclebmc/bmcs_api_key.pem
+region=us-phoenix-1
+compartment=ocid1.compartment.oc1..cccccccccccccccc
+namespace=yournamespace
+bastionseclist=ocid1.securitylist.oc1.sssssssssssssssss
+connectiontimeout=6000
+readtimeout=240000
+# public key file used to be passed to instances launched by Jiu.
+public_key_file=~/.ssh/demo_rsa.pub
+# bootstrap scripts used to be passed to Linux instances launched by Jiu.
+bastion_user_data=~/demo/bootstrap-bastion.sh
+webserver_user_data=~/demo/bootstrap-webserver.sh
+webserver0_user_data=~/demo/bootstrap-webserver0.sh
+webserver1_user_data=~/demo/bootstrap-webserver1.sh
+webserver2_user_data=~/demo/bootstrap-webserver2.sh
+
+[PHOENIX]
+tenancy=ocid1.tenancy.oc1..ttttttttttttttt
+user=ocid1.user.oc1..uuuuuuuuuuuuu
+fingerprint=3f:................:55
+key_file=~/.oraclebmc/bmcs_api_key.pem
+region=us-phoenix-1
+compartment=ocid1.compartment.oc1..cccccccccccccccc
+namespace=yournamespace
+bastionseclist=ocid1.securitylist.oc1.sssssssssssssssss
+connectiontimeout=6000
+readtimeout=240000
+public_key_file=~/.ssh/demo_rsa.pub
+bastion_user_data=~/demo/bootstrap-bastion.sh
+webserver_user_data=~/demo/bootstrap-webserver.sh
+webserver0_user_data=~/demo/bootstrap-webserver0.sh
+webserver1_user_data=~/demo/bootstrap-webserver1.sh
+webserver2_user_data=~/demo/bootstrap-webserver2.sh

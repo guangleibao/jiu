@@ -83,7 +83,27 @@ public class UtilNetwork extends UtilMain {
 	public UtilNetwork() {
 		super();
 	}
-
+	
+	/**
+	 * Return seclist by it's name.
+	 * @param vn
+	 * @param secListName
+	 * @param vcnId
+	 * @param compartmentId
+	 * @return
+	 */
+	public SecurityList getSecListByName(VirtualNetwork vn, String secListName, String vcnId, String compartmentId){
+		SecurityList ret = null;
+		List<SecurityList> lists = vn.listSecurityLists(ListSecurityListsRequest.builder().compartmentId(compartmentId).vcnId(vcnId).build()).getItems();
+		for(SecurityList sl:lists){
+			if(sl.getDisplayName().equals(secListName)){
+				ret = sl;
+				break;
+			}
+		}
+		return ret;
+	}
+	
 	/**
 	 * Create Oracle NoSQL ingress secrule.
 	 * @param allowSourceCidr

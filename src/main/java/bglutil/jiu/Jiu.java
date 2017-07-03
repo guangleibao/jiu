@@ -863,7 +863,7 @@ public class Jiu {
 	}
 
 	/**
-	 * Show rules for seclist.
+	 * Show rules for seclist by id.
 	 * @param secListOcid
 	 * @param profile
 	 * @throws Exception
@@ -874,6 +874,24 @@ public class Jiu {
 		UtilNetwork un = new UtilNetwork();
 		SecurityList sl = vn.getSecurityList(GetSecurityListRequest.builder().securityListId(secListOcid).build()).getSecurityList();
 		sk.printTitle(1,"Security List:");
+		un.printSecListRules(sl);
+		sk.printTitle(0, "End");
+	}
+	
+	/**
+	 * Show rules for seclist by name and vcn name.
+	 * @param secListName
+	 * @param vcnName
+	 * @param profile
+	 * @throws IOException
+	 */
+	public void showSecListByName(String secListName, String vcnName, String profile) throws IOException{
+		h.help(secListName, "<sec-list-name> <vcn-name> <profile>");
+		String compartmentId = Config.getMyCompartmentId(profile);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilNetwork un = new UtilNetwork();
+		sk.printTitle(0,"Security List:");
+		SecurityList sl = un.getSecListByName(vn, secListName, un.getVcnIdByName(vn, vcnName, compartmentId), compartmentId);
 		un.printSecListRules(sl);
 		sk.printTitle(0, "End");
 	}
