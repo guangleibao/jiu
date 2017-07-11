@@ -840,6 +840,24 @@ public class Jiu {
 		}
 		sk.printTitle(0, "End");
 	}
+	
+	/**
+	 * Create and wait for image creation.
+	 * @param imageName
+	 * @param instanceName
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void createImage(String imageName, String instanceName, String profile) throws Exception{
+		h.help(imageName, "<image-name> <instance-name> <profile>");
+		sk.printTitle(0, "Create new image named "+imageName+" from instance "+instanceName);
+		Compute c = Client.getComputeClient(profile);
+		UtilCompute uc = new UtilCompute();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		Image img = uc.createImage(c, imageName, uc.getInstanceIdByName(c, instanceName, compartmentId), compartmentId);
+		h.waitForImageStatus(c, img.getId(), Image.LifecycleState.Available, "Creating image", false);
+		sk.printTitle(0, "End");
+	}
 
 	// COMPUTE END //
 
@@ -895,9 +913,45 @@ public class Jiu {
 		un.printSecListRules(sl);
 		sk.printTitle(0, "End");
 	}
-
-	public void showInstance(String name, String profile){
-		
+	
+	/**
+	 * Show instance detail by name.
+	 * @param name
+	 * @param profile
+	 * @throws IOException
+	 */
+	public void showInstance(String namePrefix, String profile) throws IOException{
+		h.help(namePrefix, "<name-prefix> <profile>");
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		Identity id = Client.getIamClient(profile);
+		Compute c = Client.getComputeClient(profile);
+		UtilNetwork un = new UtilNetwork();
+		UtilIam ui = new UtilIam();
+		UtilCompute uc = new UtilCompute();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		String compartmentName = ui.getCompartmentNameByOcid(id, compartmentId);
+		sk.printTitle(0, "Instance name starts with "+namePrefix+" in Compartment - "+compartmentName);
+		for (Vcn v:un.getAllVcn(vn, compartmentId)){
+			VcnAsset va = VcnAsset.getInstance(vn, id, v.getId(), compartmentId);
+			Collection<Subnet> subnets = va.getSubnets().values();
+			for(Subnet s:subnets){
+				// Instance detail
+				Map<Vnic,Instance> instances = un.getInstanceBySubnetReverseState(vn, c, s, Instance.LifecycleState.Terminated);
+				for(Vnic nic:instances.keySet()){
+					String dn = instances.get(nic).getDisplayName();
+					if(dn.startsWith(namePrefix)){
+						sk.printResult(2, true, (dn.toLowerCase().contains("bastion")?Helper.FIST:Helper.STAR)+"  Machine: "
+							+dn+", "
+							+nic.getPrivateIp()+", "
+							+nic.getPublicIp()+", "
+							+instances.get(nic).getShape()+", "
+							+uc.getImageNameById(c,instances.get(nic).getImageId())+", "
+							+instances.get(nic).getLifecycleState().getValue());
+					}
+				}
+			}
+		}
+		sk.printTitle(0, "End");
 	}
 	
 	/**

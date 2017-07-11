@@ -11,6 +11,7 @@ import java.util.TreeSet;
 import com.oracle.bmc.core.Compute;
 import com.oracle.bmc.core.VirtualNetwork;
 import com.oracle.bmc.core.model.AttachIScsiVolumeDetails;
+import com.oracle.bmc.core.model.CreateImageDetails;
 import com.oracle.bmc.core.model.IScsiVolumeAttachment;
 import com.oracle.bmc.core.model.Image;
 import com.oracle.bmc.core.model.Instance;
@@ -20,6 +21,7 @@ import com.oracle.bmc.core.model.Vnic;
 import com.oracle.bmc.core.model.VnicAttachment;
 import com.oracle.bmc.core.model.VolumeAttachment;
 import com.oracle.bmc.core.requests.AttachVolumeRequest;
+import com.oracle.bmc.core.requests.CreateImageRequest;
 import com.oracle.bmc.core.requests.DetachVolumeRequest;
 import com.oracle.bmc.core.requests.GetImageRequest;
 import com.oracle.bmc.core.requests.GetInstanceRequest;
@@ -46,6 +48,23 @@ import bglutil.jiu.common.UtilMain;
 public class UtilCompute extends UtilMain{
 	public UtilCompute() {
 		super();
+	}
+	
+	/**
+	 * Create a custom image from existing instance.
+	 * @param c
+	 * @param name
+	 * @param instanceId
+	 * @param compartmentId
+	 * @return
+	 */
+	public Image createImage(Compute c, String name, String instanceId, String compartmentId){
+		Image img = c.createImage(CreateImageRequest.builder().createImageDetails(CreateImageDetails.builder()
+				.compartmentId(compartmentId)
+				.displayName(name)
+				.instanceId(instanceId).build()
+				).build()).getImage();
+		return img;
 	}
 	
 	/**

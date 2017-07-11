@@ -20,6 +20,7 @@ import com.oracle.bmc.core.ComputeWaiters;
 import com.oracle.bmc.core.VirtualNetwork;
 import com.oracle.bmc.core.VirtualNetworkWaiters;
 import com.oracle.bmc.core.model.DhcpOptions;
+import com.oracle.bmc.core.model.Image;
 import com.oracle.bmc.core.model.Instance;
 import com.oracle.bmc.core.model.InternetGateway;
 import com.oracle.bmc.core.model.RouteTable;
@@ -28,6 +29,7 @@ import com.oracle.bmc.core.model.Subnet;
 import com.oracle.bmc.core.model.Vcn;
 import com.oracle.bmc.core.model.Volume;
 import com.oracle.bmc.core.requests.GetDhcpOptionsRequest;
+import com.oracle.bmc.core.requests.GetImageRequest;
 import com.oracle.bmc.core.requests.GetInstanceRequest;
 import com.oracle.bmc.core.requests.GetInternetGatewayRequest;
 import com.oracle.bmc.core.requests.GetRouteTableRequest;
@@ -36,6 +38,7 @@ import com.oracle.bmc.core.requests.GetSubnetRequest;
 import com.oracle.bmc.core.requests.GetVcnRequest;
 import com.oracle.bmc.core.requests.GetVolumeRequest;
 import com.oracle.bmc.core.responses.GetDhcpOptionsResponse;
+import com.oracle.bmc.core.responses.GetImageResponse;
 import com.oracle.bmc.core.responses.GetInstanceResponse;
 import com.oracle.bmc.core.responses.GetInternetGatewayResponse;
 import com.oracle.bmc.core.responses.GetRouteTableResponse;
@@ -191,7 +194,7 @@ public class Helper {
 	 * @throws InterruptedException 
 	 */
 	public void search(String commandPrefix) throws IllegalAccessException, IllegalArgumentException, InvocationTargetException, InterruptedException {
-		Jiu j = new Jiu();
+		//Jiu j = new Jiu();
 		ArrayList<Method> vm = Helper.getJiuTools();
 		Object[] params = null;
 		ArrayList<HelpCaller> instances = new ArrayList<HelpCaller>();
@@ -262,6 +265,15 @@ public class Helper {
 	}
 	
 	/* waitForXxxStatus */
+	
+	public GetImageResponse waitForImageStatus(Compute c, String imageId, Image.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
+		char mark = tearDown?Helper.REMOVING:Helper.BUILDING;
+		ComputeWaiters cw = c.getWaiters();
+		this.processingV2(waitMessage+" ... ");
+		GetImageResponse res = cw.forImage(GetImageRequest.builder().imageId(imageId).build(), state).execute();
+		this.done(mark);
+		return res;
+	}
 	
 	public GetVolumeResponse waitForVolumeStatus(Blockstorage bs, String volId, Volume.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
 		char mark = tearDown?Helper.REMOVING:Helper.BUILDING;
