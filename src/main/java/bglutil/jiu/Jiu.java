@@ -921,7 +921,7 @@ public class Jiu {
 	 * @throws IOException
 	 */
 	public void showInstance(String namePrefix, String profile) throws IOException{
-		h.help(namePrefix, "<name-prefix> <profile>");
+		h.help(namePrefix, "<name-prefix|?> <profile>");
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
 		Identity id = Client.getIamClient(profile);
 		Compute c = Client.getComputeClient(profile);
@@ -931,6 +931,7 @@ public class Jiu {
 		String compartmentId = Config.getMyCompartmentId(profile);
 		String compartmentName = ui.getCompartmentNameByOcid(id, compartmentId);
 		sk.printTitle(0, "Instance name starts with "+namePrefix+" in Compartment - "+compartmentName);
+		boolean all = namePrefix.equals("?")?true:false;
 		for (Vcn v:un.getAllVcn(vn, compartmentId)){
 			VcnAsset va = VcnAsset.getInstance(vn, id, v.getId(), compartmentId);
 			Collection<Subnet> subnets = va.getSubnets().values();
@@ -939,7 +940,7 @@ public class Jiu {
 				Map<Vnic,Instance> instances = un.getInstanceBySubnetReverseState(vn, c, s, Instance.LifecycleState.Terminated);
 				for(Vnic nic:instances.keySet()){
 					String dn = instances.get(nic).getDisplayName();
-					if(dn.startsWith(namePrefix)){
+					if(all || dn.startsWith(namePrefix)){
 						sk.printResult(2, true, (dn.toLowerCase().contains("bastion")?Helper.FIST:Helper.STAR)+"  Machine: "
 							+dn+", "
 							+nic.getPrivateIp()+", "

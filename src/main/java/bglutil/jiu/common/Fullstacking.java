@@ -99,7 +99,7 @@ public class Fullstacking extends UtilMain{
 				"Cloud Machine", 
 				"OCM", 
 				"Oracle Cloud Machine delivers Oracle Cloud services in your data center, fully managed by Oracle, so that you can take advantage of the agility, innovation and subscription-based pricing of Oracle Cloud while meeting data-residency requirements.",
-				"http://docs.oracle.com/cloud-machine/latest/");
+				"http://docs.oracle.com/en/cloud/cloud-at-customer/index.html");
 		// IaaS-BMC-Compute
 		this.addProduct("IaaS-BMC-Compute", 
 				"Bare Metal Instances", 
@@ -197,13 +197,13 @@ public class Fullstacking extends UtilMain{
 		this.addProduct("PaaS-OPC-MySQL", 
 				"MySQL", 
 				"N/A", 
-				"The world’s most popular open source database powered by the Oracle Cloud, delivering a secure, cost-effective and enterprise-grade MySQL database service for your modern applications.",
-				"https://cloud.oracle.com/opc/paas/ebooks/Oracle_MySQL_Cloud_Service.pdf");
+				"MySQL EE in the cloud. Compute node accessible.",
+				"https://cloud.oracle.com/en_US/mysql/documentation");
 		// PaaS-OPC-NoSQL
 		this.addProduct("PaaS-OPC-NoSQL-Database", 
 				"NoSQL", 
 				"N/A", 
-				"A scale-out, low latency key-value database service including support for JSON and Table data types. Built-in high availability, transactions, parallel query, and more.",
+				"Coming soon. A scale-out, low latency key-value database service including support for JSON and Table data types. Built-in high availability, transactions, parallel query, and more.",
 				"https://cloud.oracle.com/opc/paas/ebooks/Oracle_NoSQL_Database.pdf");
 		// PaaS-OPC-Big-Data
 		this.addProduct("PaaS-OPC-Big-Data", 
