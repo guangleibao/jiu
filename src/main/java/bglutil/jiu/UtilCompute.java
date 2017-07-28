@@ -250,37 +250,40 @@ public class UtilCompute extends UtilMain{
 			String sh = s.getShape();
 			String ss = null;
 			if(sh.equals("BM.Standard1.36")){
-				ss = sh+" 256GB";
+				ss = sh+" [36 OCPU 256GB RAM]";
 			}
 			else if(sh.equals("BM.HighIO1.36")){
-				ss = sh+" 512GB 12.8TB NVMe SSD";
+				ss = sh+" [36 OCPU 512GB RAM 12.8TB NVMe SSD]";
 			}
 			else if(sh.equals("BM.DenseIO1.36")){
-				ss = sh+" 512GB 28.8TB NVMe SSD";
+				ss = sh+" [36 OCPU 512GB RAM 28.8TB NVMe SSD]";
 			}
 			else if(sh.equals("VM.Standard1.1")){
-				ss = sh+" 7GB";
+				ss = sh+" [1 OCPU 7GB RAM]";
 			}
 			else if(sh.equals("VM.Standard1.2")){
-				ss = sh+" 14GB";
+				ss = sh+" [2 OCPU 14GB RAM]";
 			}
 			else if(sh.equals("VM.Standard1.4")){
-				ss = sh+" 28GB";
+				ss = sh+" [4 OCPU 28GB RAM]";
 			}
 			else if(sh.equals("VM.Standard1.8")){
-				ss = sh+" 56GB";
+				ss = sh+" [8 OCPU 56GB RAM]";
 			}
 			else if(sh.equals("VM.Standard1.16")){
-				ss = sh+" 112GB";
+				ss = sh+" [16 OCPU 112GB RAM]";
 			}
 			else if(sh.equals("VM.DenseIO1.4")){
-				ss = sh+" 60GB 3.2TB NVMe SSD";
+				ss = sh+" [4 OCPU 60GB RAM 3.2TB NVMe SSD]";
 			}
 			else if(sh.equals("VM.DenseIO1.8")){
-				ss = sh+" 120GB 6.4TB NVMe SSD";
+				ss = sh+" [8 OCPU 120GB RAM 6.4TB NVMe SSD]";
 			}
 			else if(sh.equals("VM.DenseIO1.16")){
-				ss = sh+" 240GB 12.8TB NVMe SSD";
+				ss = sh+" [16 OCPU 240GB RAM 12.8TB NVMe SSD]";
+			}
+			else{
+				ss = sh;
 			}
 			ts.add(ss);
 		}
