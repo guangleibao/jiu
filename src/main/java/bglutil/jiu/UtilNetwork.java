@@ -278,7 +278,7 @@ public class UtilNetwork extends UtilMain {
 	 * @param compartmentId
 	 * @return
 	 */
-	public Hashtable<Vnic,Instance> getAllInstance(VirtualNetwork vn, Compute c,  Instance.LifecycleState state, String compartmentId){
+	public Hashtable<Vnic,Instance> getAllInstanceReverse(VirtualNetwork vn, Compute c,  Instance.LifecycleState state, String compartmentId){
 		Hashtable<Vnic,Instance> vnicToInstance = new Hashtable<Vnic,Instance>();
 		UtilCompute uc = new UtilCompute();
 		List<Instance> instances = c.listInstances(ListInstancesRequest.builder().compartmentId(compartmentId).build()).getItems();
@@ -551,8 +551,8 @@ public class UtilNetwork extends UtilMain {
 			List<String> securityListIds, String description, boolean isPrivate) throws Exception {
 		CreateSubnetResponse csr = vn.createSubnet(CreateSubnetRequest.builder()
 				.createSubnetDetails(CreateSubnetDetails.builder().availabilityDomain(availabilityDomain)
-						.cidrBlock(cidr).compartmentId(compartmentId).dhcpOptionsId(dhcpOptionsId).displayName(name)
-						.dnsLabel(dnsLabel).routeTableId(routeTableId).vcnId(vcnId).securityListIds(securityListIds)
+						.cidrBlock(cidr).compartmentId(compartmentId).displayName(name).vcnId(vcnId)
+						.dhcpOptionsId(dhcpOptionsId).dnsLabel(dnsLabel).routeTableId(routeTableId).securityListIds(securityListIds)
 						.prohibitPublicIpOnVnic(isPrivate)
 						.build())
 				.build());

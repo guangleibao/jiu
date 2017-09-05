@@ -26,6 +26,8 @@ import com.oracle.bmc.core.Compute;
 import com.oracle.bmc.core.ComputeClient;
 import com.oracle.bmc.core.VirtualNetwork;
 import com.oracle.bmc.core.VirtualNetworkClient;
+import com.oracle.bmc.core.model.CaptureConsoleHistoryDetails;
+import com.oracle.bmc.core.model.ConsoleHistory;
 import com.oracle.bmc.core.model.DhcpOption;
 import com.oracle.bmc.core.model.DhcpOptions;
 import com.oracle.bmc.core.model.Drg;
@@ -45,16 +47,23 @@ import com.oracle.bmc.core.model.Vnic;
 import com.oracle.bmc.core.model.VnicAttachment;
 import com.oracle.bmc.core.model.Volume;
 import com.oracle.bmc.core.model.VolumeAttachment;
+import com.oracle.bmc.core.requests.CaptureConsoleHistoryRequest;
+import com.oracle.bmc.core.requests.GetConsoleHistoryContentRequest;
 import com.oracle.bmc.core.requests.GetDrgRequest;
+import com.oracle.bmc.core.requests.GetInstanceRequest;
 import com.oracle.bmc.core.requests.GetInternetGatewayRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
 import com.oracle.bmc.core.requests.GetSubnetRequest;
+import com.oracle.bmc.core.requests.GetVcnRequest;
+import com.oracle.bmc.core.requests.GetVnicRequest;
 import com.oracle.bmc.core.requests.GetVolumeAttachmentRequest;
 import com.oracle.bmc.core.requests.GetWindowsInstanceInitialCredentialsRequest;
 import com.oracle.bmc.core.requests.InstanceActionRequest;
 import com.oracle.bmc.core.requests.ListInstancesRequest;
 import com.oracle.bmc.core.requests.ListSubnetsRequest;
 import com.oracle.bmc.core.requests.ListVnicAttachmentsRequest;
+import com.oracle.bmc.core.responses.GetConsoleHistoryContentResponse;
+import com.oracle.bmc.core.responses.GetConsoleHistoryResponse;
 import com.oracle.bmc.core.responses.GetInstanceResponse;
 import com.oracle.bmc.identity.Identity;
 import com.oracle.bmc.identity.IdentityClient;
@@ -453,6 +462,59 @@ public class Jiu {
 	// COMPUTE BEGIN //
 	
 	/**
+	 * Show recent console history.
+	 * @param instanceName
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void showConsoleHistory(String instanceName, String profile) throws Exception{
+		h.help(instanceName, "<instance-name> <profile>");
+		sk.printTitle(0, "Printing console history for "+instanceName);
+		Compute c = Client.getComputeClient(profile);
+		UtilCompute uc = new UtilCompute();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		String instanceId = uc.getInstanceIdByName(c, instanceName, compartmentId);
+		ConsoleHistory ch = c.captureConsoleHistory(CaptureConsoleHistoryRequest.builder()
+				.captureConsoleHistoryDetails(CaptureConsoleHistoryDetails.builder()
+						.instanceId(instanceId).build()
+						).build()).getConsoleHistory();
+		h.waitForConsoleHistoryStatus(c, ch.getId(), ConsoleHistory.LifecycleState.Succeeded, "Getting console history");
+		String content = null;
+		GetConsoleHistoryContentResponse gchcr = c.getConsoleHistoryContent(GetConsoleHistoryContentRequest.builder().instanceConsoleHistoryId(ch.getId()).build());	
+		content = gchcr.getValue();
+		System.out.println(content);
+		sk.printTitle(0, "End");
+	}
+	
+	/**
+	 * Add a secondary VNIC with publicIp/privateIp/hostnameLabel settings to an instance.
+	 * @param instanceName
+	 * @param vnicName
+	 * @param vcnName
+	 * @param subnetName
+	 * @param publicIpNeeded
+	 * @param privateIp
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void addSecondaryVnicToInstance(String instanceName, String vnicName, String vcnName, String subnetName, String publicIpNeeded, String privateIp, String profile) throws Exception{
+		h.help(instanceName, "<instance-name> <vnic-name> <vcn-name> <subnet-name> <public-ip-needed: yes|no> <private-ip-address: auto|CIDR> <profile>");
+		sk.printTitle(0, "Create a new VNIC add attach it to instance "+instanceName);
+		Compute c = Client.getComputeClient(profile);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilCompute uc = new UtilCompute();
+		UtilNetwork un = new UtilNetwork();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		String instanceId = uc.getInstanceIdByName(c, instanceName, compartmentId);
+		String vcnId = un.getVcnIdByName(vn, vcnName, compartmentId);
+		String subnetId = un.getSubnetIdByName(vn, subnetName, vcnId, compartmentId);
+		boolean assignPublicIp = publicIpNeeded.equalsIgnoreCase("no")?false:true;
+		String privateIpSetting = privateIp.equalsIgnoreCase("auto")?null:privateIp;
+		uc.attachSecondaryVnic(c, vnicName+"-"+instanceName, instanceId, subnetId, assignPublicIp, vnicName, vnicName, privateIpSetting);
+		sk.printTitle(0, "End");
+	}
+	
+	/**
 	 * Show all active instances with name prefix.
 	 * @param namePrefix
 	 * @param profile
@@ -468,7 +530,7 @@ public class Jiu {
 		UtilNetwork un = new UtilNetwork();
 		LoadBalancer lb = Client.getLoadBalancerClient(profile);
 		String compartmentId = Config.getMyCompartmentId(profile);
-		Hashtable<Vnic,Instance> instances = un.getAllInstance(vn, c, Instance.LifecycleState.Terminated, compartmentId);
+		Hashtable<Vnic,Instance> instances = un.getAllInstanceReverse(vn, c, Instance.LifecycleState.Terminated, compartmentId);
 		for(Vnic nic:instances.keySet()){
 			String dn = instances.get(nic).getDisplayName();
 			if(namePrefix.equals("?") || dn.startsWith(namePrefix)){
@@ -782,6 +844,7 @@ public class Jiu {
 		
 		this.showVolume(vcnName, profile);
 	}
+
 	
 	/**
 	 * Delete the volume.
@@ -862,7 +925,61 @@ public class Jiu {
 	// COMPUTE END //
 
 	// NETWORK BEGIN //
-
+	
+	/**
+	 * Show all VNIC attachments for profile.
+	 * @param profile
+	 * @throws IOException
+	 */
+	public void debugShowAllVnicAttachment(String profile) throws IOException{
+		h.help(profile, "<profile>");
+		Compute c = Client.getComputeClient(profile);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		String compartmentId = Config.getMyCompartmentId(profile);
+		Identity id = Client.getIamClient(profile);
+		UtilNetwork un = new UtilNetwork();
+		List<AvailabilityDomain> ads = id.listAvailabilityDomains(ListAvailabilityDomainsRequest.builder().compartmentId(compartmentId).build()).getItems();
+		for(AvailabilityDomain ad:ads){
+			sk.printResult(0, true, ad.getName());
+			List<VnicAttachment> vas = c.listVnicAttachments(ListVnicAttachmentsRequest.builder().compartmentId(compartmentId).availabilityDomain(ad.getName()).build()).getItems();
+			for(VnicAttachment va:vas){
+				String instanceName = c.getInstance(GetInstanceRequest.builder().instanceId(va.getInstanceId()).build()).getInstance().getDisplayName();
+				String name = va.getDisplayName();
+				String state = va.getLifecycleState().getValue();
+				Subnet sn = vn.getSubnet(GetSubnetRequest.builder().subnetId(va.getSubnetId()).build()).getSubnet();
+				String subnetName = sn.getDisplayName();
+				String vcnName = vn.getVcn(GetVcnRequest.builder().vcnId(sn.getVcnId()).build()).getVcn().getDisplayName();
+				String vlanTag = va.getVlanTag().toString();
+				sk.printResult(1, true, "name: "+name+", "+
+				"onInstance: "+instanceName+", "+
+				"state: "+state+", "+
+				"subnet: "+subnetName+", "+
+				"vlanTag: "+vlanTag+", "+
+				"vcn: "+vcnName);
+			}
+		}
+	}
+	
+	/**
+	 * Create a new public subnet with default settings.
+	 * @param name
+	 * @param vcnName
+	 * @param availabilityDomain
+	 * @param cidr
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void createDefaultPublicSubnet(String name, String vcnName, String availabilityDomain, String cidr, String profile) throws Exception{
+		h.help(name, "<name> <vcnname> <ad> <cidr> <profile>");
+		sk.printTitle(0, "Create Subnet - "+name);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilNetwork un = new UtilNetwork();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		String vcnId = un.getVcnIdByName(vn, vcnName, compartmentId);
+		un.createSubnet(vn, compartmentId, vcnId, name, name, cidr, availabilityDomain, null, null, null, name, false);
+		sk.printTitle(0, "End");
+	}
+	
 	/**
 	 * Create a new VCN by CIDR.
 	 * @param name
@@ -870,7 +987,7 @@ public class Jiu {
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void createVcn(String name, String cidr, String profile) throws Exception {
+	public Vcn createVcn(String name, String cidr, String profile) throws Exception {
 		h.help(name, "<name> <cidr> <profile>");
 		sk.printTitle(0, "Create VCN - "+name);
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
@@ -878,6 +995,7 @@ public class Jiu {
 		Vcn vcn = un.createVcn(vn, Config.getMyCompartmentId(profile), name, cidr, "Jiu - "+name);
 		sk.printResult(0, true, vcn.getCidrBlock()+", "+vcn.getVcnDomainName()+", "+vcn.getId()+" CREATED.");
 		sk.printTitle(0, "End");
+		return vcn;
 	}
 
 	/**
@@ -947,7 +1065,8 @@ public class Jiu {
 							+nic.getPublicIp()+", "
 							+instances.get(nic).getShape()+", "
 							+uc.getImageNameById(c,instances.get(nic).getImageId())+", "
-							+instances.get(nic).getLifecycleState().getValue());
+							+instances.get(nic).getLifecycleState().getValue()+", "
+							+"(profile: "+profile+")");
 					}
 				}
 			}
@@ -1311,25 +1430,26 @@ public class Jiu {
 	 * @param vcnName
 	 * @param lbName
 	 * @param lbPolicy
+	 * @param cookieName Non-null for stateful session.
 	 * @param hcProtocol
 	 * @param hcPort
 	 * @param hcUrlPath
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void addLbBackendSet(String name, String vcnName, String lbName, String lbPolicy, String hcProtocol, String hcPort, String hcUrlPath, String profile) throws Exception{
-		h.help(name, "<name> <vcn-name> <load-balancer-name> <policy: ROUND_ROBIN|LEAST_CONNECTIONS|IP_HASH> <health-check-protocol> <health-check-port> <health-check-url-path> <profile>");
+	public void addLbBackendSet(String name, String vcnName, String lbName, String lbPolicy, String cookieName, String hcProtocol, String hcPort, String hcUrlPath, String profile) throws Exception{
+		h.help(name, "<name> <vcn-name> <load-balancer-name> <policy: ROUND_ROBIN|LEAST_CONNECTIONS|IP_HASH> <stateful-cookie-name: NAME|null> <health-check-protocol> <health-check-port> <health-check-url-path> <profile>");
 		sk.printTitle(0, "Create Load Balancer Backend Set - "+name);
 		LoadBalancer lb = Client.getLoadBalancerClient(profile);
 		UtilLoadBalancer ulb = new UtilLoadBalancer();
 		String compartmentId = Config.getMyCompartmentId(profile);
 		ulb.addBackendSetForLoadBalancer(lb, name, ulb.getLoadBalancerIdByName(lb, lbName, compartmentId), 
-				lbPolicy, hcProtocol, Integer.valueOf(hcPort), hcUrlPath);
+				lbPolicy, (cookieName.equals("null")?null:cookieName), hcProtocol, Integer.valueOf(hcPort), hcUrlPath); // Stateless
 		sk.printTitle(0, "End");
 	}
 	
 	/**
-	 * Create a load balancer.
+	 * Create a public load balancer.
 	 * @param name
 	 * @param vcnName
 	 * @param subnet1Name
@@ -1338,9 +1458,9 @@ public class Jiu {
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void createLb(String name, String vcnName, String subnet1Name, String subnet2Name, String shape, String profile) throws Exception{
+	public void createLbPublic(String name, String vcnName, String subnet1Name, String subnet2Name, String shape, String profile) throws Exception{
 		h.help(name, "<name> <vcn-name> <subnet-1-name> <subnet-2-name> <shape: 100Mbps|400Mbps|8000Mbps> <profile>");
-		sk.printTitle(0, "Create Load Balancer - "+name);
+		sk.printTitle(0, "Create Public Load Balancer - "+name);
 		LoadBalancer lb = Client.getLoadBalancerClient(profile);
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
 		UtilLoadBalancer ulb = new UtilLoadBalancer();
@@ -1350,7 +1470,31 @@ public class Jiu {
 		String subnet1Id = un.getSubnetIdByName(vn, subnet1Name, vcnId, compartmentId);
 		String subnet2Id = un.getSubnetIdByName(vn, subnet2Name, vcnId, compartmentId);
 		ulb.createLoadBalancerPublic(lb, name, shape, subnet1Id, subnet2Id,compartmentId);
-		sk.printResult(0, true, "Load Balancer "+name+" created");
+		sk.printResult(0, true, "Public Load Balancer "+name+" created");
+		sk.printTitle(0, "End");
+	}
+	
+	/**
+	 * Create a private load balancer.
+	 * @param name
+	 * @param vcnName
+	 * @param subnetName
+	 * @param shape
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void createLbPrivate(String name, String vcnName, String subnetName, String shape, String profile) throws Exception{
+		h.help(name, "<name> <vcn-name> <subnet-name> <shape: 100Mbps|400Mbps|8000Mbps> <profile>");
+		sk.printTitle(0, "Create Private Load Balancer - "+name);
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilLoadBalancer ulb = new UtilLoadBalancer();
+		UtilNetwork un = new UtilNetwork();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		String vcnId = un.getVcnIdByName(vn, vcnName, compartmentId);
+		String subnetId = un.getSubnetIdByName(vn, subnetName, vcnId, compartmentId);
+		ulb.createLoadBalancerPrivate(lb, name, shape, subnetId,compartmentId);
+		sk.printResult(0, true, "Private Load Balancer "+name+" created");
 		sk.printTitle(0, "End");
 	}
 	
@@ -1480,8 +1624,8 @@ public class Jiu {
 	 * @param profile
 	 * @throws IOException
 	 */
-	public void showAd(String profile) throws IOException{
-		h.help(profile, "<profilet>");
+	public List<AvailabilityDomain> showAd(String profile) throws IOException{
+		h.help(profile, "<profile>");
 		sk.printTitle(0, "Bare Metal AD in "+Config.getConfigFileReader(profile).get("region"));
 		Identity id = Client.getIamClient(profile);
 		List<AvailabilityDomain> ads = id.listAvailabilityDomains(ListAvailabilityDomainsRequest.builder().compartmentId(Config.getMyCompartmentId(profile)).build()).getItems();
@@ -1489,6 +1633,7 @@ public class Jiu {
 			sk.printResult(0, true, ad.getName());
 		}
 		sk.printTitle(0, "End");
+		return ads;
 	}
 
 	/**
@@ -1560,6 +1705,70 @@ public class Jiu {
 	// COMMON END //
 
 	// DEMO BEGIN //
+	
+	public void demoYumUpdateWebServer(String webserverName, String loadbalancerName, String profile) throws Exception{
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilNetwork un = new UtilNetwork();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		
+		String stagingCidr = "10.77.0.0/16";
+		String stagingVcnName = "stagingvcn";
+		String stagingIgwName = "stagingigw";
+		String stagingRouteTableName = "stagingrt";
+		String stagingSecListName = "stagingsl";
+		String stagingSubnetCidr = "10.77.1.0/24";
+		String stagingSubnetName = "stagingsn";
+		
+		/**
+		 * Step 1: Create a Staging VCN.
+		 * Step 2: Create IGW and Routing Table.
+		 * Step 3: Create a SecList for image creation.
+		 * Step 4: Create a Subnet for image creation.
+		 * Step 5: Create a new instance from base image for image creation. And yum update.
+		 * Step 6: Check.
+		 * Step 7: Create a new image.
+		 * Step 8: Destroy everything in staging VCN and VCN itself.
+		 * Step 9: Create a new instance from new image.
+		 * Step 10: Register new instance to load balancer.
+		 * Step 11: Drain connections from old instance.
+		 * Step 12: Destroy old instance.
+		 */
+		
+		// Step 1: Create a Staging VCN.
+		Vcn stagingVcn = this.createVcn(stagingVcnName, stagingCidr, profile);
+		String stagingVcnId = stagingVcn.getId();
+		
+		// Step 2: Create IGW and Routing Table.
+		InternetGateway igw = un.createIgw(vn, compartmentId, stagingVcnId, stagingIgwName);
+		RouteRule toIgw = RouteRule.builder().cidrBlock("0.0.0.0/0").networkEntityId(igw.getId()).build();
+		List<RouteRule> publicRouteRules = new ArrayList<RouteRule>(); 
+		publicRouteRules.add(toIgw);
+		RouteTable publicRouteTable = un.createRouteTable(vn, compartmentId, stagingVcnId, stagingRouteTableName, publicRouteRules);
+		
+		// Step 3: Create a SecList for image creation.
+		List<EgressSecurityRule> erAllowAll = un.getEgressAllowAllRules();
+		//List<IngressSecurityRule> irBastion = un.getBastionIngressSecurityRules(stagingCidr);
+		List<IngressSecurityRule> irStagingWebServer = un.getPublicLoadBalancerIngressSecurityRules(new int[]{80});
+		SecurityList stagingWebServerSecList = un.createSecList(vn, compartmentId, stagingVcnId, stagingSecListName, irStagingWebServer, erAllowAll);
+		List<String> stagingWebServerSecLists = new ArrayList<String>();
+		stagingWebServerSecLists.add(stagingWebServerSecList.getId());
+		
+		// Step 4: Create a Subnet for image creation.
+		Subnet stagingSubnet = un.createSubnet(vn, compartmentId, stagingVcnId, 
+				stagingSubnetName,stagingSubnetName, 
+				stagingSubnetCidr, this.showAd(profile).get(2).getName(), 
+				stagingVcn.getDefaultDhcpOptionsId(), publicRouteTable.getId(), stagingWebServerSecLists, "For yum update staging",
+				false);
+		// Step 5: Create a new instance from base image for image creation. And yum update.
+		// Step 6: Check.
+		// Step 7: Create a new image.
+		// Step 8: Destroy everything in staging VCN and VCN itself.
+		// Step 9: Create a new instance from new image.
+		// Step 10: Register new instance to load balancer.
+		// Step 11: Drain connections from old instance.
+		// Step 12: Destroy old instance.		
+		
+	}
 
 	/**
 	 * Open SSH for bastion seclist.
@@ -1590,16 +1799,44 @@ public class Jiu {
 		un.secListRemoveIngressBastionTcpPort(vn, ocid,"22");
 		sk.printResult(0, true, "SSH for Bastion seclist "+ocid+" closed.");
 	}
-
+	
+	/**
+	 * A version of demoCreateInstanceGroupInfra
+	 * @param namePrefix
+	 * @param count
+	 * @param userdataFilePath
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void demoCreateInstanceGroupInfraOl73_201704180(String namePrefix, String count, String userdataFilePath, String profile) throws Exception{
+		h.help(namePrefix, "<resource-name-prefix> <instance-count> <user-data-file-path> <profile-name>");
+		this.demoCreateInstanceGroupInfra(namePrefix, "7.3", "2017.04.18-0", count, userdataFilePath, profile);
+	}
+	
+	/**
+	 * A version of demoCreateInstanceGroupInfra
+	 * @param namePrefix
+	 * @param count
+	 * @param userdataFilePath
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void demoCreateInstanceGroupInfraOl73_201707170(String namePrefix, String count, String userdataFilePath, String profile) throws Exception{
+		h.help(namePrefix, "<resource-name-prefix> <instance-count> <user-data-file-path> <profile-name>");
+		this.demoCreateInstanceGroupInfra(namePrefix, "7.3", "2017.07.17-0", count, userdataFilePath, profile);
+	}
+	
 	/**
 	 * Create several public accessible vm instances in a new VCN. Shape: VM.Standard1.1
 	 * @param namePrefix
+	 * @param oracleLinuxRelase
+	 * @param releaseDate
 	 * @param count
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void demoCreateInstanceGroupInfra(String namePrefix, String count, String userdataFilePath, String profile) throws Exception{
-		h.help(namePrefix, "<demo-name-prefix> <instance-count> <userdata-file-path> <profile-name>");
+	public void demoCreateInstanceGroupInfra(String namePrefix, String oracleLinuxRelease, String releaseDate, String count, String userdataFilePath, String profile) throws Exception{
+		h.help(namePrefix, "<demo-name-prefix> <instance-count> <ol-release: e.g: 7.3> <release-date: e.g: 2017.04.18-0> <userdata-file-path> <profile-name>");
 		String prefix = namePrefix!=null?namePrefix:"bgltest";
 		sk.printTitle(0, "Create instances group - "+prefix);
 		Identity id = Client.getIamClient(profile);
@@ -1639,7 +1876,7 @@ public class Jiu {
 		UtilCompute uc = new UtilCompute();
 		Image vmImage = null;
 		for(Image img:uc.getAllImage(c, compartmentId)){
-			if(img.getOperatingSystem().equals("Oracle Linux") && img.getOperatingSystemVersion().equals("7.3") && img.getDisplayName().contains("2017.04.18-0")){
+			if(img.getOperatingSystem().equals("Oracle Linux") && img.getOperatingSystemVersion().equals(oracleLinuxRelease) && img.getDisplayName().contains(releaseDate)){ // "2017.04.18-0"
 				vmImage = img;
 				break;
 			}
@@ -1655,15 +1892,108 @@ public class Jiu {
 		h.silentWaitForInstanceStatus(c, instanceIds, Instance.LifecycleState.Running, false);
 		sk.printTitle(0, "End");
 	}
+	
+	/**
+	 * TODO
+	 * High level complete process of Bring Your Own Image:
+	 * 1. Create a VCN, subnets, a bastion host, and an iPXE boot server.
+	 * 2. Set up the document root of the PXE boot instance to boot and install the customer OS over iPXE. This process varies by OS.
+	 * 3. Launch a sacrificial instance with the ipxeScript attribute of the LaunchInstance API call.
+	 * 4. Wait for the customer OS to install on the instance. (This process usually requires less than 15 minutes.)
+	 * 5. (Optional) Log on to the sacrificial instance to customize it.
+	 * 6. Create a custom image of the sacrificial instance.
+	 * 7. Use the custom image to launch new instances as needed.
+	 * 
+	 * Solved by demoPrepareForPxe(): 
+	 * 1. Create a VCN, subnets, a bastion host, and an iPXE boot server.
+	 * 2. Set up the document root of the PXE boot instance to boot and install the customer OS over iPXE. This process varies by OS.
+	 * @throws Exception
+	 */
+	public void demoPrepareForPxe(String namePrefix, String bastionUserdataFilePath, String profile) throws Exception{
+		this.demoCreateInstanceGroupInfra(namePrefix, "7.3", "2017.07.17-0", "1", bastionUserdataFilePath, profile);
+		
+	}
 
 	/**
-	 * Create a simple infra only includes 1 VCN, 1 Subnet, 1 Bastion.
+	 * A version of demoCreateSingleBastionInfra.
+	 * @param namePrefix
+	 * @param userdataFilePath
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void demoCreateSingleBastionInfraOl73_201704180(String namePrefix, String userdataFilePath, String profile) throws Exception{
+		h.help(namePrefix, "<resource-name-prefix> <user-data-file-path> <profile-name>");
+		this.demoCreateSingleBastionInfra(namePrefix, "7.3", "2017.04.18-0", userdataFilePath, profile);
+	}
+	
+	/**
+	 * A version of demoCreateSingleBastionInfra.
+	 * @param namePrefix
+	 * @param userdataFilePath
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void demoCreateSingleBastionInfraOl73_201707170(String namePrefix, String userdataFilePath, String profile) throws Exception{
+		h.help(namePrefix, "<resource-name-prefix> <user-data-file-path> <profile-name>");
+		this.demoCreateSingleBastionInfra(namePrefix, "7.3", "2017.07.17-0", userdataFilePath, profile);
+	}
+	
+	/**
+	 * Create new VCN with only one public subnet in it.
 	 * @param namePrefix
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void demoCreateSingleBastionInfra(String namePrefix, String userdataFilePath, String profile) throws Exception{
-		h.help(namePrefix, "<resource-name-prefix> <user-data-file-path> <profile-name>");
+	public void demoCreateSingleSubnetVcn(String namePrefix, String profile) throws Exception{
+		h.help(namePrefix, "<resource-name-prefix> <profile-name>");
+		String prefix = namePrefix!=null?namePrefix:"bgltest";
+		sk.printTitle(0, "Create Infrastructure - "+prefix);
+		Identity id = Client.getIamClient(profile);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilIam ui = new UtilIam();
+		UtilNetwork un = new UtilNetwork();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		// VCN
+		Vcn vcn = un.createVcn(vn, compartmentId, prefix+"vcn", "10.8.0.0/16", "Jiu - "+prefix+"vcn");
+		// IGW
+		InternetGateway igw = un.createIgw(vn, compartmentId, vcn.getId(), prefix+"igw");
+		// Public Route Table
+		RouteRule rr = RouteRule.builder().cidrBlock("0.0.0.0/0").networkEntityId(igw.getId()).build();
+		List<RouteRule> rrs = new ArrayList<RouteRule>(); rrs.add(rr);
+		RouteTable publicRouteTable = un.createRouteTable(vn, compartmentId, vcn.getId(), prefix+"rt-public", rrs);
+		
+		List<EgressSecurityRule> erAllowAll = un.getEgressAllowAllRules();
+		// Bastion SecList
+		List<IngressSecurityRule> irBastion = un.getBastionIngressSecurityRules("10.8.0.0/16");
+		SecurityList bastionSecList = un.createSecList(vn, compartmentId, vcn.getId(), prefix+"seclist-bastion-public", irBastion, erAllowAll);
+		List<String> bastionSecLists = new ArrayList<String>();
+		bastionSecLists.add(bastionSecList.getId());
+		
+		// Subnet
+		List<AvailabilityDomain> ads = ui.getAllAd(id, profile);
+		String snpub = prefix+"snpub";
+		Subnet[] pubSubnets = new Subnet[1];
+		for(int i=0;i<1;i++){
+			pubSubnets[i] = un.createSubnet(vn, compartmentId, vcn.getId(), 
+				snpub+i, snpub+i, 
+				"10.8."+i+".0/24", ads.get(i).getName(), 
+				vcn.getDefaultDhcpOptionsId(), publicRouteTable.getId(), bastionSecLists, "Jiu - "+snpub+i,
+				false);
+		}
+		this.showVcn(prefix+"vcn", profile);
+		sk.printTitle(0, "End");
+	}
+	
+	/**
+	 * Create a simple infra only includes 1 VCN, 1 Subnet, 1 Bastion.
+	 * @param oracleLinuxRelase
+	 * @param releaseDate
+	 * @param namePrefix
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void demoCreateSingleBastionInfra(String namePrefix, String oracleLinuxRelease, String releaseDate, String userdataFilePath, String profile) throws Exception{
+		h.help(namePrefix, "<resource-name-prefix> <ol-release: e.g: 7.3> <release-date: e.g: 2017.04.18-0> <user-data-file-path> <profile-name>");
 		String prefix = namePrefix!=null?namePrefix:"bgltest";
 		sk.printTitle(0, "Create Infrastructure - "+prefix);
 		Identity id = Client.getIamClient(profile);
@@ -1702,7 +2032,7 @@ public class Jiu {
 		UtilCompute uc = new UtilCompute();
 		Image vmImage = null;
 		for(Image img:uc.getAllImage(c, compartmentId)){
-			if(img.getOperatingSystem().equals("Oracle Linux") && img.getOperatingSystemVersion().equals("7.3") && img.getDisplayName().contains("2017.04.18-0")){
+			if(img.getOperatingSystem().equals("Oracle Linux") && img.getOperatingSystemVersion().equals(oracleLinuxRelease) && img.getDisplayName().contains(releaseDate)){
 				vmImage = img;
 				break;
 			}
@@ -1714,6 +2044,28 @@ public class Jiu {
 				Instance.LifecycleState.Running);
 		this.showVcn(prefix+"vcn", profile);
 		sk.printTitle(0, "End");
+	}
+	
+	/**
+	 * A version of demoCreateSimpleWebInfra.
+	 * @param namePrefix
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void demoCreateSimpleWebInfraOl73_201704180(String namePrefix, String profile) throws Exception{
+		h.help(namePrefix, "<resource-name-prefix> <profile-name>");
+		this.demoCreateSimpleWebInfra(namePrefix,"7.3","2017.04.18-0", profile);
+	}
+	
+	/**
+	 * A version of demoCreateSimpleWebInfra.
+	 * @param namePrefix
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void demoCreateSimpleWebInfraOl73_201707170(String namePrefix, String profile) throws Exception{
+		h.help(namePrefix, "<resource-name-prefix> <profile-name>");
+		this.demoCreateSimpleWebInfra(namePrefix,"7.3","2017.07.17-0", profile);
 	}
 
 	/**
@@ -1745,11 +2097,14 @@ public class Jiu {
 	 * 10. Two Oracle Linux 7.3 Web Server. Private.
 	 * 11. One Load Balancer.
 	 * 12. Registering 2 Web Servers to Load Balancer.
+	 * @param namePrefix 
+	 * @param oracleLinuxRelase
+	 * @param releaseDate
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void demoCreateSimpleWebInfra(String namePrefix, String profile) throws Exception{
-		h.help(namePrefix, "<resource-name-prefix> <profile-name>");
+	public void demoCreateSimpleWebInfra(String namePrefix, String oracleLinuxRelease, String releaseDate, String profile) throws Exception{
+		h.help(namePrefix, "<resource-name-prefix> <ol-release: e.g: 7.3> <release-date: e.g: 2017.04.18-0> <profile-name>");
 		String prefix = namePrefix!=null?namePrefix:"bgltest";
 		sk.printTitle(0, "Create Infrastructure - "+prefix);
 		Identity id = Client.getIamClient(profile);
@@ -1827,7 +2182,7 @@ public class Jiu {
 		UtilCompute uc = new UtilCompute();
 		Image vmImage = null;
 		for(Image img:uc.getAllImage(c, compartmentId)){
-			if(img.getOperatingSystem().equals("Oracle Linux") && img.getOperatingSystemVersion().equals("7.3") && img.getDisplayName().contains("2017.04.18-0")){
+			if(img.getOperatingSystem().equals("Oracle Linux") && img.getOperatingSystemVersion().equals(oracleLinuxRelease) && img.getDisplayName().contains(releaseDate)){
 				vmImage = img;
 				break;
 			}
@@ -1853,7 +2208,7 @@ public class Jiu {
 		
 		WorkRequest wr1 = null;
 		do{
-			wr1 = ulb.addBackendSetForLoadBalancer(lb, backendSetName, lbId, "ROUND_ROBIN", "HTTP", 80, "/index.html");
+			wr1 = ulb.addBackendSetForLoadBalancer(lb, backendSetName, lbId, "ROUND_ROBIN", null, "HTTP", 80, "/index.html"); // Stateless
 			List<WorkRequestError> errors = wr1.getErrorDetails();
 			if(errors!=null && errors.size()>0){
 				for(WorkRequestError error:errors){

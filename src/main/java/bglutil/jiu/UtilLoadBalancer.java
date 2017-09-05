@@ -12,6 +12,7 @@ import com.oracle.bmc.loadbalancer.model.CreateLoadBalancerDetails;
 import com.oracle.bmc.loadbalancer.model.HealthCheckerDetails;
 import com.oracle.bmc.loadbalancer.model.LoadBalancerPolicy;
 import com.oracle.bmc.loadbalancer.model.LoadBalancerShape;
+import com.oracle.bmc.loadbalancer.model.SessionPersistenceConfigurationDetails;
 import com.oracle.bmc.loadbalancer.model.UpdateBackendDetails;
 import com.oracle.bmc.loadbalancer.model.WorkRequest;
 import com.oracle.bmc.loadbalancer.requests.CreateBackendRequest;
@@ -145,30 +146,47 @@ public class UtilLoadBalancer extends UtilMain{
 	}
 	
 	/**
-	 * Add backendset to load balancer.
+	 * Add backendset to load balancer. Non-null cookieName for session sticky setting.
 	 * @param lb
 	 * @param name
 	 * @param lbId
 	 * @param lbPolicy
+	 * @param cookieName
 	 * @param hcProtocol
 	 * @param hcPort
 	 * @param hcUrlPath
 	 * @return
 	 * @throws Exception
 	 */
-	public WorkRequest addBackendSetForLoadBalancer(LoadBalancer lb, String name, String lbId, String lbPolicy, String hcProtocol, int hcPort, String hcUrlPath) throws Exception{
-		String wrId = lb.createBackendSet(CreateBackendSetRequest.builder()
-				.loadBalancerId(lbId)
-				.createBackendSetDetails(CreateBackendSetDetails.builder()
-						.name(name)
-						.healthChecker(HealthCheckerDetails.builder()
-								.port(hcPort)
-								.protocol(hcProtocol)
-								.urlPath(hcUrlPath).build())
-						.policy(lbPolicy)
-						.build()).build()).getOpcWorkRequestId();
-		return h.waitForWorkReqeustStatus(lb, wrId, "Creating Backend Set "+name, false).getWorkRequest();
-	
+	public WorkRequest addBackendSetForLoadBalancer(LoadBalancer lb, String name, String lbId, String lbPolicy, String cookieName, String hcProtocol, int hcPort, String hcUrlPath) throws Exception{
+		String wrId = null;
+		if (cookieName!=null){
+			wrId = lb.createBackendSet(CreateBackendSetRequest.builder()
+					.loadBalancerId(lbId)
+					.createBackendSetDetails(CreateBackendSetDetails.builder()
+							.name(name)
+							.healthChecker(HealthCheckerDetails.builder()
+									.port(hcPort)
+									.protocol(hcProtocol)
+									.urlPath(hcUrlPath).build())
+							.policy(lbPolicy)
+							.sessionPersistenceConfiguration(SessionPersistenceConfigurationDetails.builder().disableFallback(false)
+									.cookieName(cookieName).build())
+							.build()).build()).getOpcWorkRequestId();
+		}
+		else{
+			wrId = lb.createBackendSet(CreateBackendSetRequest.builder()
+					.loadBalancerId(lbId)
+					.createBackendSetDetails(CreateBackendSetDetails.builder()
+							.name(name)
+							.healthChecker(HealthCheckerDetails.builder()
+									.port(hcPort)
+									.protocol(hcProtocol)
+									.urlPath(hcUrlPath).build())
+							.policy(lbPolicy)
+							.build()).build()).getOpcWorkRequestId();
+		}
+		return h.waitForWorkReqeustStatus(lb, wrId, "Creating "+(cookieName==null?"stateless":"stateful")+" Backend Set "+name, false).getWorkRequest();
 	}
 	
 	/**
@@ -192,6 +210,33 @@ public class UtilLoadBalancer extends UtilMain{
 						.compartmentId(compartmentId)
 						.displayName(name)
 						.shapeName(shapeName)
+						.isPrivate(false)
+						.subnetIds(subnetIds)
+						.build()).build()).getOpcWorkRequestId();
+		return h.waitForWorkReqeustStatus(lb, createLbReqId, "Creating Load Balancer "+name, false).getWorkRequest();
+	}
+	
+	/**
+	 * Create a new private load balancer.
+	 * @param lb
+	 * @param name
+	 * @param shapeName
+	 * @param subnetId
+	 * @param compartmentId
+	 * @return
+	 * @throws Exception
+	 */
+	public WorkRequest createLoadBalancerPrivate(LoadBalancer lb, String name, String shapeName, String subnetId, String compartmentId) throws Exception{
+		
+		List<String> subnetIds = new ArrayList<String>();
+		subnetIds.add(subnetId);
+		
+		String createLbReqId = lb.createLoadBalancer(CreateLoadBalancerRequest.builder()
+				.createLoadBalancerDetails(CreateLoadBalancerDetails.builder()
+						.compartmentId(compartmentId)
+						.displayName(name)
+						.shapeName(shapeName)
+						.isPrivate(true)
 						.subnetIds(subnetIds)
 						.build()).build()).getOpcWorkRequestId();
 		return h.waitForWorkReqeustStatus(lb, createLbReqId, "Creating Load Balancer "+name, false).getWorkRequest();

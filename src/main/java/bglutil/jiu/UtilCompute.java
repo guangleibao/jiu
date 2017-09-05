@@ -11,7 +11,9 @@ import java.util.TreeSet;
 import com.oracle.bmc.core.Compute;
 import com.oracle.bmc.core.VirtualNetwork;
 import com.oracle.bmc.core.model.AttachIScsiVolumeDetails;
+import com.oracle.bmc.core.model.AttachVnicDetails;
 import com.oracle.bmc.core.model.CreateImageDetails;
+import com.oracle.bmc.core.model.CreateVnicDetails;
 import com.oracle.bmc.core.model.IScsiVolumeAttachment;
 import com.oracle.bmc.core.model.Image;
 import com.oracle.bmc.core.model.Instance;
@@ -20,11 +22,14 @@ import com.oracle.bmc.core.model.Shape;
 import com.oracle.bmc.core.model.Vnic;
 import com.oracle.bmc.core.model.VnicAttachment;
 import com.oracle.bmc.core.model.VolumeAttachment;
+import com.oracle.bmc.core.requests.AttachVnicRequest;
 import com.oracle.bmc.core.requests.AttachVolumeRequest;
 import com.oracle.bmc.core.requests.CreateImageRequest;
+import com.oracle.bmc.core.requests.DetachVnicRequest;
 import com.oracle.bmc.core.requests.DetachVolumeRequest;
 import com.oracle.bmc.core.requests.GetImageRequest;
 import com.oracle.bmc.core.requests.GetInstanceRequest;
+import com.oracle.bmc.core.requests.GetVnicAttachmentRequest;
 import com.oracle.bmc.core.requests.GetVnicRequest;
 import com.oracle.bmc.core.requests.GetVolumeAttachmentRequest;
 import com.oracle.bmc.core.requests.LaunchInstanceRequest;
@@ -34,7 +39,9 @@ import com.oracle.bmc.core.requests.ListShapesRequest;
 import com.oracle.bmc.core.requests.ListVnicAttachmentsRequest;
 import com.oracle.bmc.core.requests.ListVolumeAttachmentsRequest;
 import com.oracle.bmc.core.requests.TerminateInstanceRequest;
+import com.oracle.bmc.core.responses.AttachVnicResponse;
 import com.oracle.bmc.core.responses.GetInstanceResponse;
+import com.oracle.bmc.core.responses.GetVnicAttachmentResponse;
 import com.oracle.bmc.core.responses.LaunchInstanceResponse;
 
 import bglutil.jiu.common.Helper;
@@ -377,6 +384,98 @@ public class UtilCompute extends UtilMain{
         String instanceId = response.getInstance().getId();
         GetInstanceResponse res = h.waitForInstanceStatus(c, instanceId, targetState, targetState.name()+" Instance - "+name, false);
         return res;
+	}
+	
+	/**
+	 * Launch a new instance with VNIC details.
+	 * @param assignPublicIp
+	 * @param hostnameLabel
+	 * @param privateIp
+	 * @param c
+	 * @param compartmentId
+	 * @param subnetId
+	 * @param name
+	 * @param imageId
+	 * @param shapeId
+	 * @param sshPublicKey
+	 * @param ad
+	 * @param userdataBase64
+	 * @param targetState
+	 * @return
+	 * @throws Exception
+	 */
+	public GetInstanceResponse createInstanceWithVnicDetails(
+			boolean assignPublicIp, String hostnameLabel, String privateIp,
+			Compute c, String compartmentId, String subnetId, String name, String imageId, String shapeId, String sshPublicKey, String ad, String userdataBase64, Instance.LifecycleState targetState) throws Exception{
+		
+		Map<String, String> metadata = new HashMap<String, String>();
+        metadata.put("ssh_authorized_keys", sshPublicKey);
+        if(userdataBase64!=null){
+        	metadata.put("user_data", userdataBase64);
+        }
+        
+        LaunchInstanceResponse response =
+                c.launchInstance(
+                        LaunchInstanceRequest.builder()
+                                .launchInstanceDetails(
+                                        LaunchInstanceDetails.builder()
+                                                .availabilityDomain(ad)
+                                                .compartmentId(compartmentId)
+                                                .imageId(imageId)
+                                                .metadata(metadata)
+                                                .shape(shapeId)
+                                                .createVnicDetails(CreateVnicDetails.builder().assignPublicIp(assignPublicIp).hostnameLabel(hostnameLabel).privateIp(privateIp).subnetId(subnetId).displayName(name).build())
+                                                .build())
+                                .build());
+        String instanceId = response.getInstance().getId();
+        GetInstanceResponse res = h.waitForInstanceStatus(c, instanceId, targetState, targetState.name()+" Instance - "+name, false);
+        return res;
+	}
+	
+	/**
+	 * Add secondary VNIC to an existing instance.
+	 * @param c
+	 * @param name
+	 * @param instanceId
+	 * @param subnetId
+	 * @param assignPublicIp
+	 * @param displayName
+	 * @param hostnameLabel
+	 * @param privateIp
+	 * @return
+	 * @throws Exception
+	 */
+	public GetVnicAttachmentResponse attachSecondaryVnic(Compute c, String name, String instanceId, String subnetId, boolean assignPublicIp, String displayName, String hostnameLabel, String privateIp) throws Exception{
+		AttachVnicResponse response = null;
+		if(privateIp!=null){
+		response = c.attachVnic(AttachVnicRequest.builder()
+				.attachVnicDetails(AttachVnicDetails.builder().instanceId(instanceId).displayName(name)
+						.createVnicDetails(CreateVnicDetails.builder().assignPublicIp(assignPublicIp).hostnameLabel(hostnameLabel).privateIp(privateIp).subnetId(subnetId).displayName(displayName).build())
+						.build())
+				.build());
+		}
+		else{
+			response = c.attachVnic(AttachVnicRequest.builder()
+					.attachVnicDetails(AttachVnicDetails.builder().instanceId(instanceId).displayName(name)
+							.createVnicDetails(CreateVnicDetails.builder().assignPublicIp(assignPublicIp).hostnameLabel(hostnameLabel).subnetId(subnetId).displayName(displayName).build())
+							.build())
+					.build());
+		}
+		GetVnicAttachmentResponse res = h.waitForVnicAttachmentStatus(c, response.getVnicAttachment().getId(), VnicAttachment.LifecycleState.Attached, " Attaching Vnic to Instance - "+name, false);
+		return res;
+	}
+	
+	public void detachSecondaryVnic(Compute c, VirtualNetwork vn, String name, String instanceId, String compartmentId) throws Exception{
+		List<Vnic> vnics = this.getVnicByInstanceId(c, vn, instanceId, compartmentId);
+		String vnicId = null;
+		for(Vnic v:vnics){
+			if(v.getDisplayName().equals(name)){
+				vnicId = v.getId();
+				break;
+			}
+		}
+		List<VnicAttachment> vas = c.listVnicAttachments(ListVnicAttachmentsRequest.builder().compartmentId(compartmentId).instanceId(instanceId).vnicId(vnicId).build()).getItems();
+		//TODO
 	}
 	
 }

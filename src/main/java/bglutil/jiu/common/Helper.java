@@ -19,6 +19,7 @@ import com.oracle.bmc.core.Compute;
 import com.oracle.bmc.core.ComputeWaiters;
 import com.oracle.bmc.core.VirtualNetwork;
 import com.oracle.bmc.core.VirtualNetworkWaiters;
+import com.oracle.bmc.core.model.ConsoleHistory;
 import com.oracle.bmc.core.model.DhcpOptions;
 import com.oracle.bmc.core.model.Image;
 import com.oracle.bmc.core.model.Instance;
@@ -27,7 +28,9 @@ import com.oracle.bmc.core.model.RouteTable;
 import com.oracle.bmc.core.model.SecurityList;
 import com.oracle.bmc.core.model.Subnet;
 import com.oracle.bmc.core.model.Vcn;
+import com.oracle.bmc.core.model.VnicAttachment;
 import com.oracle.bmc.core.model.Volume;
+import com.oracle.bmc.core.requests.GetConsoleHistoryRequest;
 import com.oracle.bmc.core.requests.GetDhcpOptionsRequest;
 import com.oracle.bmc.core.requests.GetImageRequest;
 import com.oracle.bmc.core.requests.GetInstanceRequest;
@@ -36,7 +39,9 @@ import com.oracle.bmc.core.requests.GetRouteTableRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
 import com.oracle.bmc.core.requests.GetSubnetRequest;
 import com.oracle.bmc.core.requests.GetVcnRequest;
+import com.oracle.bmc.core.requests.GetVnicAttachmentRequest;
 import com.oracle.bmc.core.requests.GetVolumeRequest;
+import com.oracle.bmc.core.responses.GetConsoleHistoryResponse;
 import com.oracle.bmc.core.responses.GetDhcpOptionsResponse;
 import com.oracle.bmc.core.responses.GetImageResponse;
 import com.oracle.bmc.core.responses.GetInstanceResponse;
@@ -45,6 +50,7 @@ import com.oracle.bmc.core.responses.GetRouteTableResponse;
 import com.oracle.bmc.core.responses.GetSecurityListResponse;
 import com.oracle.bmc.core.responses.GetSubnetResponse;
 import com.oracle.bmc.core.responses.GetVcnResponse;
+import com.oracle.bmc.core.responses.GetVnicAttachmentResponse;
 import com.oracle.bmc.core.responses.GetVolumeResponse;
 import com.oracle.bmc.identity.Identity;
 import com.oracle.bmc.identity.IdentityWaiters;
@@ -283,6 +289,15 @@ public class Helper {
 		this.done(mark);
 		return res;
 	}
+	
+	public GetConsoleHistoryResponse waitForConsoleHistoryStatus(Compute c, String chId, ConsoleHistory.LifecycleState state, String waitMessage) throws Exception{
+		char mark = Helper.BUILDING;
+		ComputeWaiters cw = c.getWaiters();
+		this.processingV2(waitMessage+" ... ");
+		GetConsoleHistoryResponse res = cw.forConsoleHistory(GetConsoleHistoryRequest.builder().instanceConsoleHistoryId(chId).build(), state).execute();
+		this.done(mark);
+		return res;
+	}
 
 	
 	public GetWorkRequestResponse waitForWorkReqeustStatus(LoadBalancer lb, String workRequestId, String waitMessage, boolean tearDown) throws Exception{
@@ -309,6 +324,15 @@ public class Helper {
 		ComputeWaiters cw = c.getWaiters();
 		this.processingV2(waitMessage+" ... ");
 		GetInstanceResponse res = cw.forInstance(GetInstanceRequest.builder().instanceId(instanceId).build(), state).execute();
+		this.done(mark);
+		return res;
+	}
+	
+	public GetVnicAttachmentResponse waitForVnicAttachmentStatus(Compute c, String vnicAttachmentId, VnicAttachment.LifecycleState state, String waitMessage, boolean tearDown) throws Exception{
+		char mark = tearDown?Helper.REMOVING:Helper.BUILDING;
+		ComputeWaiters cw = c.getWaiters();
+		this.processingV2(waitMessage+" ... ");
+		GetVnicAttachmentResponse res = cw.forVnicAttachment(GetVnicAttachmentRequest.builder().vnicAttachmentId(vnicAttachmentId).build(), state).execute();
 		this.done(mark);
 		return res;
 	}
