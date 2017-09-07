@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -2601,6 +2602,54 @@ public class Jiu {
 	// DEMO END //
 
 	// FUN BEGIN //
+	
+	/**
+	 * Endless connect to specified address with or without http:// URI prefix.
+	 * @param address
+	 * @throws Exception
+	 */
+	public void urlTest(String address, String parallel) throws Exception{
+		h.help(address,"<url-for-testing> <parallel>");
+		if(!address.startsWith("http")){
+			address="http://"+address;
+		}
+		ArrayList<URL> urls = new ArrayList<URL>();
+		try {
+			urls.add(new URL(address));
+		} catch (MalformedURLException e) {
+			// Will NOT happen.
+			e.printStackTrace();
+		}
+		// Wait for port open.
+		System.out.println(urls.get(0).toString());
+		BufferedReader br;
+		boolean dive = true;
+		int count = 0;
+		long start = 0L;
+		long end = 0L;
+		while (dive) {
+			try {
+				start = System.currentTimeMillis();
+				br = new BufferedReader(new InputStreamReader(urls
+						.get(0).openConnection().getInputStream()));
+				String lineOne = br.readLine();
+				end = System.currentTimeMillis();
+				System.out.println(++count+": Reading first line: "+lineOne+" ("+(end-start)+"ms) OK.");
+				br.close();
+			} catch (Exception ex) {
+				System.out.println(ex.getMessage());
+				try {
+					Thread.sleep(7 * 1000);
+				} catch (InterruptedException e) {
+				}
+			} finally{
+				try {
+					Thread.sleep(1 * 1000);
+				} catch (InterruptedException e) {
+				}
+			}
+		}
+	}
 
 	public void showCloudProduct() {
 		Fullstacking fs = new Fullstacking();
