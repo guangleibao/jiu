@@ -1960,32 +1960,34 @@ public class Jiu {
 		 */
 
 		// Step 1: Create a Staging VCN.
+		/*
 		Vcn stagingVcn = this.createVcn(stage1VcnName, stage1Cidr, profile);
-		String stagingVcnId = stagingVcn.getId();
+		String stagingVcnId = stagingVcn.getId();*/
 
 		// Step 2: Create IGW and Routing Table.
+		/*
 		InternetGateway igw = un.createIgw(vn, compartmentId, stagingVcnId, stage1IgwName);
 		RouteRule toIgw = RouteRule.builder().cidrBlock("0.0.0.0/0").networkEntityId(igw.getId()).build();
 		List<RouteRule> publicRouteRules = new ArrayList<RouteRule>();
 		publicRouteRules.add(toIgw);
 		RouteTable publicRouteTable = un.createRouteTable(vn, compartmentId, stagingVcnId, stage1RouteTableName,
-				publicRouteRules);
+				publicRouteRules);*/
 
 		// Step 3: Create a SecList for image creation.
+		/*
 		List<EgressSecurityRule> erAllowAll = un.getEgressAllowAllRules();
-		// List<IngressSecurityRule> irBastion =
-		// un.getBastionIngressSecurityRules(stagingCidr);
 		List<IngressSecurityRule> irStagingWebServer = un
 				.getPublicLoadBalancerIngressSecurityRules(new int[] { 80, 22 });
 		SecurityList stagingWebServerSecList = un.createSecList(vn, compartmentId, stagingVcnId, stage1SecListName,
 				irStagingWebServer, erAllowAll);
 		List<String> stagingWebServerSecLists = new ArrayList<String>();
-		stagingWebServerSecLists.add(stagingWebServerSecList.getId());
+		stagingWebServerSecLists.add(stagingWebServerSecList.getId());*/
 
 		// Step 4: Create a Subnet for image creation.
+		/*
 		un.createSubnet(vn, compartmentId, stagingVcnId, stage1SubnetName, stage1SubnetName, stage1SubnetCidr,
 				this.showAd(profile).get(2).getName(), stagingVcn.getDefaultDhcpOptionsId(), publicRouteTable.getId(),
-				stagingWebServerSecLists, "For yum update staging", false);
+				stagingWebServerSecLists, "For yum update staging", false);*/
 
 		// Step 5: Create a new instance from the old image for image creation.
 		// And yum update.
@@ -2002,7 +2004,7 @@ public class Jiu {
 				+ " && chmod a+r /var/www/html/index-test.html" + " && service httpd start\n";
 		sk.printTitle(0, "Staging instance launching using following userdata:");
 		System.out.println(userdata);
-		this.createInstanceWithBase64Userdata(stage1InstanceName, stage1VcnName, stage1SubnetName,
+		this.createInstanceWithBase64Userdata(stage1InstanceName, webserverVcnName, webserverSubnetName,
 				imageNameOfOldInstance, "VM.Standard1.1", h.base64Encode(userdata), profile);
 
 		// Step 6: Check stage1. Abort if check fails.
