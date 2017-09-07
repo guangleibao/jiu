@@ -25,6 +25,7 @@ import com.oracle.bmc.core.model.VolumeAttachment;
 import com.oracle.bmc.core.requests.AttachVnicRequest;
 import com.oracle.bmc.core.requests.AttachVolumeRequest;
 import com.oracle.bmc.core.requests.CreateImageRequest;
+import com.oracle.bmc.core.requests.DeleteImageRequest;
 import com.oracle.bmc.core.requests.DetachVnicRequest;
 import com.oracle.bmc.core.requests.DetachVolumeRequest;
 import com.oracle.bmc.core.requests.GetImageRequest;
@@ -463,6 +464,17 @@ public class UtilCompute extends UtilMain{
 		}
 		GetVnicAttachmentResponse res = h.waitForVnicAttachmentStatus(c, response.getVnicAttachment().getId(), VnicAttachment.LifecycleState.Attached, " Attaching Vnic to Instance - "+name, false);
 		return res;
+	}
+	
+	public void deleteImageByName(Compute c, String imageName, String compartmentId) throws Exception{
+		List<Image> li = c.listImages(ListImagesRequest.builder().displayName(imageName).compartmentId(compartmentId).build()).getItems();
+		for(Image i:li){
+			if(i.getLifecycleState().equals(Image.LifecycleState.Available)){
+				c.deleteImage(DeleteImageRequest.builder().imageId(i.getId()).build());
+				h.waitForImageStatus(c, i.getId(), Image.LifecycleState.Deleted, "Deleting image "+imageName, true);
+			}
+		}
+		
 	}
 	
 	public void detachSecondaryVnic(Compute c, VirtualNetwork vn, String name, String instanceId, String compartmentId) throws Exception{
