@@ -2006,7 +2006,7 @@ public class Jiu {
 				imageNameOfOldInstance, "VM.Standard1.1", h.base64Encode(userdata), profile);
 
 		// Step 6: Check stage1. Abort if check fails.
-		String testUrl = "http://" + this.printInstanceIpByName(stage1InstanceName, "public", profile)
+		String testUrl = "http://" + this.printInstanceIpByName(stage1InstanceName, "private", profile)
 				+ "/index-test.html";
 		sk.printTitle(0, "Checking Stage1");
 		boolean stage1Passed = this.testHttpHealth(testUrl, "_SUCCESS", 30);
@@ -2042,7 +2042,7 @@ public class Jiu {
 
 		// Step 10: Check stage2. Abort if check fails.
 		sk.printTitle(0, "Checking Stage2");
-		String testUrlStage2 = "http://" + this.printInstanceIpByName(stage2InstanceName, "public", profile)
+		String testUrlStage2 = "http://" + this.printInstanceIpByName(stage2InstanceName, "private", profile)
 				+ "/index.html";
 		boolean stage2Passed = this.testHttpHealth(testUrlStage2, "Welcome", 30);
 		if (!stage2Passed) {

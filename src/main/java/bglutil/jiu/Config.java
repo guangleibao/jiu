@@ -36,7 +36,7 @@ public class Config {
 			}
 			br.close();
 		} catch (FileNotFoundException e) {
-			e.printStackTrace();
+			System.out.println("No public key found! Instance cannot be logged in! Yes, I like it.");
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
