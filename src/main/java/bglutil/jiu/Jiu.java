@@ -1420,7 +1420,7 @@ public class Jiu {
 	 */
 	public void changeLbBackendDrain(String lbName, String backendSetName, String backendName, String drain,
 			String profile) throws Exception {
-		h.help(lbName, "<load-balancer-name> <backendset-name> <backend-name> <drain: true|false> <profile>");
+		h.help(lbName, "<load-balancer-name> <backendset-name> <backend-ip:port> <drain: true|false> <profile>");
 		sk.printTitle(0, "Change " + backendName + " drain to " + drain);
 		LoadBalancer lb = Client.getLoadBalancerClient(profile);
 		UtilLoadBalancer ulb = new UtilLoadBalancer();
@@ -1461,7 +1461,7 @@ public class Jiu {
 	 * @throws NumberFormatException
 	 * @throws IOException
 	 */
-	public void showLbInVcn(String vcnName, String profile) throws NumberFormatException, IOException {
+	public List<com.oracle.bmc.loadbalancer.model.LoadBalancer> showLbInVcn(String vcnName, String profile) throws NumberFormatException, IOException {
 		h.help(vcnName, "<vcn-name> <profile>");
 		sk.printTitle(0, "Show all load balancers in VCN " + vcnName);
 		LoadBalancer lb = Client.getLoadBalancerClient(profile);
@@ -1505,6 +1505,7 @@ public class Jiu {
 			}
 		}
 		sk.printTitle(0, "End");
+		return ls;
 	}
 
 	/**
@@ -1897,7 +1898,7 @@ public class Jiu {
 	// COMMON END //
 
 	// DEMO BEGIN //
-
+	
 	private boolean testHttpHealth(String testUrl, String assumeString, int maxRetry) {
 		// Wait for the 80 port to open.
 		boolean failed = true;
@@ -1928,7 +1929,7 @@ public class Jiu {
 	}
 
 	public void demoYumUpdateWebServer(String webserverName, String webserverVcnName, String webserverSubnetName,
-			String loadbalancerName, String profile) throws Exception {
+			String loadbalancerName, String backendSetName, String profile) throws Exception {
 		h.help(webserverName, "<prod-webserer-for-replacinng> <webserver-vcn> <new-webserver-subnet> <frontend-lb> <profile>");
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
 		Compute c = Client.getComputeClient(profile);
@@ -1948,17 +1949,6 @@ public class Jiu {
 
 		String stage2ImageName = "prodDemoImage";
 		String stage2InstanceName = stage1InstanceName;
-
-		/**
-		 * Step 1: Create a Staging VCN. Step 2: Create IGW and Routing Table.
-		 * Step 3: Create a SecList for image creation. Step 4: Create a Subnet
-		 * for image creation. Step 5: Create a new instance from base image for
-		 * image creation. And yum update. Step 6: Check. Step 7: Create a new
-		 * image. Step 8: Destroy everything in staging VCN and VCN itself. Step
-		 * 9: Create a new instance from new image. Step 10: Register new
-		 * instance to load balancer. Step 11: Drain connections from old
-		 * instance. Step 12: Destroy old instance.
-		 */
 
 		// Step 1: Create a Staging VCN.
 		/*
@@ -2013,7 +2003,7 @@ public class Jiu {
 		System.out.println(userdata);
 		this.createInstanceWithBase64Userdata(stage1InstanceName, webserverVcnName, webserverSubnetName,
 				imageNameOfOldInstance, "VM.Standard1.1", h.base64Encode(userdata), profile);
-
+		sk.printTitle(0, "Staging instance ready for check.");
 		// Step 6: Check stage1. Abort if check fails.
 		String testUrl = "http://" + this.printInstanceIpByName(stage1InstanceName, "private", profile)
 				+ "/index-test.html";
@@ -2035,9 +2025,12 @@ public class Jiu {
 				break;
 			}
 		}
+		sk.printResult(0, true, "Image created. Delivery continue.");
 		
 		// Step 8: Purge instance(s) in staging VCN.
-		this.purgeVcn(stage1InstanceName, profile);
+		//this.purgeVcn(stage1InstanceName, profile);
+		this.destroyInstanceInVcn(stage1InstanceName, webserverVcnName, profile);
+		sk.printResult(0, true, "Staging instance removed. Delivery finished.");
 
 		// Step 9: Create a new web server instance from the new image。
 		String userdataForNewWebServer = "#!/bin/bash\n"
@@ -2046,7 +2039,8 @@ public class Jiu {
 		System.out.println(userdataForNewWebServer);
 		this.createInstanceWithBase64Userdata(stage2InstanceName, webserverVcnName, webserverSubnetName, stage2ImageName,
 				oldInstance.getShape(), h.base64Encode(userdataForNewWebServer), profile);
-
+		sk.printResult(0, true, "New webserver ready for check. Deployment continue.");
+		
 		// Step 10: Check stage2. Abort if check fails.
 		sk.printTitle(0, "Checking Stage2");
 		String testUrlStage2 = "http://" + this.printInstanceIpByName(stage2InstanceName, "private", profile)
@@ -2059,11 +2053,28 @@ public class Jiu {
 		sk.printResult(0, true, "Check passed. Deployment continue.");
 
 		// Step 10: Destroy everything in staging VCN and VCN itself.
-		this.nukeVcn("staging", profile);
+		/*
+		this.nukeVcn("staging", profile);*/
 
 		// Step 11: Register new prod webserver instance to load balancer.
+		this.addLbBackend(stage2InstanceName, "80", loadbalancerName, backendSetName, profile);
+		String lbIp = this.showLbInVcn(loadbalancerName, profile).get(0).getIpAddresses().get(0).getIpAddress();
+		boolean newWebServerRegistered = this.testHttpHealth("http://"+lbIp+"/index.html", "Welcome to BMC "+stage2InstanceName, 10);
+		if(!newWebServerRegistered){
+			sk.printResult(0, true, "!! Deployment aborted !!");
+			System.exit(-1);
+		}
+		sk.printResult(0, true, "Load Balancer check passed. Deployment continue.");
+		
 		// Step 12: Drain connections from old prod webserver instance.
+		String webserverIp = this.printInstanceIpByName(webserverName, "private", profile);
+		this.changeLbBackendDrain(loadbalancerName, backendSetName, webserverIp+":"+80, "true", profile);
+		sk.printResult(0, true, webserverName+" connection drained. Deployment continue.");
+		
 		// Step 13: Destroy old prod webserver instance.
+		this.destroyInstanceInVcn(webserverName, webserverVcnName, profile);
+		sk.printResult(0, true, webserverName+" removed. Deployment finished.");
+		
 		// Step 14: Finish.
 
 	}
