@@ -693,7 +693,7 @@ public class Jiu {
 				Config.publicKeyToString(profile), un.getAdBySubnetId(vn, subnetId),
 				userdataFilePath.equalsIgnoreCase("null") ? null : h.base64EncodeFromFile(userdataFilePath),
 				Instance.LifecycleState.Running);
-		sk.printResult(0, true, gis.getInstance());
+		//sk.printResult(0, true, gis.getInstance());
 		if (imageName.toLowerCase().contains("windows")) {
 			InstanceCredentials ic = c.getWindowsInstanceInitialCredentials(
 					GetWindowsInstanceInitialCredentialsRequest.builder().instanceId(gis.getInstance().getId()).build())
@@ -718,7 +718,7 @@ public class Jiu {
 		GetInstanceResponse gis = uc.createInstance(c, compartmentId, subnetId, name, imageId, shapeName,
 				Config.publicKeyToString(profile), un.getAdBySubnetId(vn, subnetId),
 				userdataBase64.equalsIgnoreCase("null") ? null : userdataBase64, Instance.LifecycleState.Running);
-		sk.printResult(0, true, gis.getInstance());
+		//sk.printResult(0, true, gis.getInstance());
 		if (imageName.toLowerCase().contains("windows")) {
 			InstanceCredentials ic = c.getWindowsInstanceInitialCredentials(
 					GetWindowsInstanceInitialCredentialsRequest.builder().instanceId(gis.getInstance().getId()).build())
@@ -2016,7 +2016,7 @@ public class Jiu {
 			sk.printResult(0, true, "!! Delivery aborted !!");
 			System.exit(-1);
 		}
-		sk.printResult(0, true, "Check passed. Delivery continuing.");
+		sk.printResult(0, true, "Check passed. Delivery continue.");
 		
 		// Step 7: Create a new image.
 		String imageId = this.createImage(stage2ImageName, stage1InstanceName, profile);
@@ -2051,7 +2051,7 @@ public class Jiu {
 			sk.printResult(0, true, "!! Deployment aborted !!");
 			System.exit(-1);
 		}
-		sk.printResult(0, true, "Check passed. Delivery continuing.");
+		sk.printResult(0, true, "Check passed. Deployment continue.");
 
 		// Step 10: Destroy everything in staging VCN and VCN itself.
 		this.nukeVcn("staging", profile);
