@@ -60,7 +60,6 @@ import com.oracle.bmc.core.requests.GetInternetGatewayRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
 import com.oracle.bmc.core.requests.GetSubnetRequest;
 import com.oracle.bmc.core.requests.GetVcnRequest;
-import com.oracle.bmc.core.requests.GetVnicRequest;
 import com.oracle.bmc.core.requests.GetVolumeAttachmentRequest;
 import com.oracle.bmc.core.requests.GetWindowsInstanceInitialCredentialsRequest;
 import com.oracle.bmc.core.requests.InstanceActionRequest;
@@ -68,7 +67,6 @@ import com.oracle.bmc.core.requests.ListInstancesRequest;
 import com.oracle.bmc.core.requests.ListSubnetsRequest;
 import com.oracle.bmc.core.requests.ListVnicAttachmentsRequest;
 import com.oracle.bmc.core.responses.GetConsoleHistoryContentResponse;
-import com.oracle.bmc.core.responses.GetConsoleHistoryResponse;
 import com.oracle.bmc.core.responses.GetInstanceResponse;
 import com.oracle.bmc.identity.Identity;
 import com.oracle.bmc.identity.IdentityClient;
@@ -2146,7 +2144,7 @@ public class Jiu {
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void demoCreateInstanceGroupInfra(String namePrefix, String oracleLinuxRelease, String releaseDate,
+	public void demoCreateLinuxInstanceGroupInfra(String namePrefix, String oracleLinuxRelease, String releaseDate,
 			String count, String userdataFilePath, String profile) throws Exception {
 		h.help(namePrefix,
 				"<demo-name-prefix> <instance-count> <ol-release: e.g: 7.3> <release-date: e.g: 2017.04.18-0> <userdata-file-path> <profile-name>");
@@ -2177,7 +2175,7 @@ public class Jiu {
 
 		// Subnet
 		List<AvailabilityDomain> ads = ui.getAllAd(id, profile);
-		String snpub = prefix + "snpub";
+		String snpub = prefix + "pub";
 		Subnet[] pubSubnets = new Subnet[1];
 		int cnt = Integer.valueOf(count);
 		for (int i = 0; i < 1; i++) {
@@ -2228,7 +2226,7 @@ public class Jiu {
 	 * @throws Exception
 	 */
 	public void demoPrepareForPxe(String namePrefix, String bastionUserdataFilePath, String profile) throws Exception {
-		this.demoCreateInstanceGroupInfra(namePrefix, "7.3", "2017.07.17-0", "1", bastionUserdataFilePath, profile);
+		this.demoCreateLinuxInstanceGroupInfra(namePrefix, "7.3", "2017.07.17-0", "1", bastionUserdataFilePath, profile);
 
 	}
 
@@ -2268,7 +2266,7 @@ public class Jiu {
 
 		// Subnet
 		List<AvailabilityDomain> ads = ui.getAllAd(id, profile);
-		String snpub = prefix + "snpub";
+		String snpub = prefix + "pub";
 		Subnet[] pubSubnets = new Subnet[1];
 		for (int i = 0; i < 1; i++) {
 			pubSubnets[i] = un.createSubnet(vn, compartmentId, vcn.getId(), snpub + i, snpub + i, "10.8." + i + ".0/24",
@@ -2288,7 +2286,7 @@ public class Jiu {
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void demoCreateSingleBastionInfra(String namePrefix, String oracleLinuxRelease, String releaseDate,
+	public void demoCreateLinuxSingleBastionInfra(String namePrefix, String oracleLinuxRelease, String releaseDate,
 			String userdataFilePath, String profile) throws Exception {
 		h.help(namePrefix,
 				"<resource-name-prefix> <ol-release: e.g: 7.3> <release-date: e.g: 2017.04.18-0> <user-data-file-path> <profile-name>");
@@ -2319,7 +2317,7 @@ public class Jiu {
 
 		// Subnet
 		List<AvailabilityDomain> ads = ui.getAllAd(id, profile);
-		String snpub = prefix + "snpub";
+		String snpub = prefix + "pub";
 		Subnet[] pubSubnets = new Subnet[1];
 		for (int i = 0; i < 1; i++) {
 			pubSubnets[i] = un.createSubnet(vn, compartmentId, vcn.getId(), snpub + i, snpub + i, "10.8." + i + ".0/24",
@@ -2352,9 +2350,9 @@ public class Jiu {
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void demoCreateSimpleWebInfraOl73_201707170(String namePrefix, String profile) throws Exception {
+	public void demoCreateLinuxSimpleWebInfraOl73_201707170(String namePrefix, String profile) throws Exception {
 		h.help(namePrefix, "<resource-name-prefix> <profile-name>");
-		this.demoCreateSimpleWebInfra(namePrefix, "7.3", "2017.07.17-0", profile);
+		this.demoCreateLinuxSimpleWebInfra(namePrefix, "7.3", "2017.07.17-0", profile);
 	}
 	
 	/**
@@ -2364,34 +2362,19 @@ public class Jiu {
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void demoCreateSimpleWebInfraOl74_201708250(String namePrefix, String profile) throws Exception {
+	public void demoCreateLinuxSimpleWebInfraOl74_201708250(String namePrefix, String profile) throws Exception {
 		h.help(namePrefix, "<resource-name-prefix> <profile-name>");
-		this.demoCreateSimpleWebInfra(namePrefix, "7.4", "2017.08.25-0", profile);
+		this.demoCreateLinuxSimpleWebInfra(namePrefix, "7.4", "2017.08.25-0", profile);
 	}
 
 	/**
-	 * Create a new infrastructure of simple web servers for demo purpose.
-	 * Subnets design: [Bastion]-[LB0]--[LB1] Public |----------|------| [
-	 * ]-------[Web0]-[Web1] Web Internal [ ]-------[ ]-[ ] NoSQL Internal
-	 * 
-	 * 1. Compartment read from configuration file. 2. One VCN. 3. One IGW. 4.
-	 * One Public Route Table. 5. One Bastion security list with rules. 6. One
-	 * Web Server security list with rules. 7. Nine Subnets. a. snpub0 =>
-	 * bastion seclist. b. snpub1 => public lb seclist. c. supub2 => public lb
-	 * seclist. d. subpri0 => webserver seclist. e. subpri1 => webservert
-	 * seclist. f. subpri2 => webservert seclist. g. subnosql0 => nosql seclist.
-	 * h. subnosql1 => nosql seclist. i. subnosql2 => nosql seclist. 8. One
-	 * Oracle Linux 7.3 Bastion. Public 9. Three Oracle Linux 7.3 NoSQL DB.
-	 * Private //TODO 10. Two Oracle Linux 7.3 Web Server. Private. 11. One Load
-	 * Balancer. 12. Registering 2 Web Servers to Load Balancer.
-	 * 
 	 * @param namePrefix
 	 * @param oracleLinuxRelase
 	 * @param releaseDate
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void demoCreateSimpleWebInfra(String namePrefix, String oracleLinuxRelease, String releaseDate,
+	public void demoCreateLinuxSimpleWebInfra(String namePrefix, String oracleLinuxRelease, String releaseDate,
 			String profile) throws Exception {
 		h.help(namePrefix,
 				"<resource-name-prefix> <ol-release: e.g: 7.3> <release-date: e.g: 2017.04.18-0> <profile-name>");
