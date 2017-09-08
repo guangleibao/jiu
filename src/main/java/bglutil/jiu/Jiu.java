@@ -1461,9 +1461,9 @@ public class Jiu {
 	 * @throws NumberFormatException
 	 * @throws IOException
 	 */
-	public List<com.oracle.bmc.loadbalancer.model.LoadBalancer> showLbInVcn(String vcnName, String profile) throws NumberFormatException, IOException {
-		h.help(vcnName, "<vcn-name> <profile>");
-		sk.printTitle(0, "Show all load balancers in VCN " + vcnName);
+	public List<com.oracle.bmc.loadbalancer.model.LoadBalancer> showLbInVcn(String lbPrefix, String vcnName, String profile) throws NumberFormatException, IOException {
+		h.help(lbPrefix, "<load-balancer-name-prefix> <vcn-name> <profile>");
+		sk.printTitle(0, "Show all load balancers in VCN " + vcnName+" with name prefix "+lbPrefix);
 		LoadBalancer lb = Client.getLoadBalancerClient(profile);
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
 		UtilNetwork un = new UtilNetwork();
@@ -1471,7 +1471,10 @@ public class Jiu {
 		String vcnId = un.getVcnIdByName(vn, vcnName, compartmentId);
 		List<com.oracle.bmc.loadbalancer.model.LoadBalancer> ls = lb
 				.listLoadBalancers(ListLoadBalancersRequest.builder().compartmentId(compartmentId).build()).getItems();
+		List<com.oracle.bmc.loadbalancer.model.LoadBalancer> ql = new ArrayList<com.oracle.bmc.loadbalancer.model.LoadBalancer>();
 		for (com.oracle.bmc.loadbalancer.model.LoadBalancer l : ls) {
+			if(l.getDisplayName().startsWith(lbPrefix)){
+				ql.add(l);
 			for (String subnetId : l.getSubnetIds()) {
 				Subnet s = vn.getSubnet(GetSubnetRequest.builder().subnetId(subnetId).build()).getSubnet();
 				if (s.getVcnId().equals(vcnId)) {
@@ -1503,9 +1506,10 @@ public class Jiu {
 					break;
 				}
 			}
+			}
 		}
 		sk.printTitle(0, "End");
-		return ls;
+		return ql;
 	}
 
 	/**
@@ -1583,7 +1587,7 @@ public class Jiu {
 			String profile) throws Exception {
 		h.help(instanceName, "<backend-instance-name> <load-balancer-name> <backendset-name> <profile>");
 		sk.printTitle(0,
-				"Add Instance " + instanceName + " to Load Balancer " + lbName + " BackendSet " + backendSetName);
+				"Add Instance " + instanceName +":"+instancePort+ " to Load Balancer " + lbName + " BackendSet " + backendSetName);
 		String compartmentId = Config.getMyCompartmentId(profile);
 		LoadBalancer lb = Client.getLoadBalancerClient(profile);
 		UtilLoadBalancer ulb = new UtilLoadBalancer();
@@ -1594,6 +1598,24 @@ public class Jiu {
 		String backendIpAddress = uc.getPrivateIpByInstanceId(c, vn, instanceId, compartmentId).get(0);
 		String lbId = ulb.getLoadBalancerIdByName(lb, lbName, compartmentId);
 		ulb.addBackendToBackendSet(lb, backendSetName, lbId, backendIpAddress, Integer.valueOf(instancePort));
+		sk.printTitle(0, "End");
+	}
+	
+	public void removeLbBackend(String lbName, String backendSetName, String instanceName, String instancePort,
+			String profile) throws Exception {
+		h.help(lbName, "<load-balancer-name> <backendset-name> <backend-server-name> <profile>");
+		sk.printTitle(0,
+				"Remove " + instanceName+":"+instancePort + " from Load Balancer " + lbName + " BackendSet " + backendSetName);
+		String compartmentId = Config.getMyCompartmentId(profile);
+		LoadBalancer lb = Client.getLoadBalancerClient(profile);
+		UtilLoadBalancer ulb = new UtilLoadBalancer();
+		Compute c = Client.getComputeClient(profile);
+		UtilCompute uc = new UtilCompute();
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		String instanceId = uc.getInstanceIdByName(c, instanceName, compartmentId);
+		String backendIpAddress = uc.getPrivateIpByInstanceId(c, vn, instanceId, compartmentId).get(0);
+		String lbId = ulb.getLoadBalancerIdByName(lb, lbName, compartmentId);
+		ulb.removeBackendFromBackendSet(lb, backendSetName, lbId, backendIpAddress, Integer.valueOf(instancePort));
 		sk.printTitle(0, "End");
 	}
 
@@ -1899,7 +1921,7 @@ public class Jiu {
 
 	// DEMO BEGIN //
 	
-	private boolean testHttpHealth(String testUrl, String assumeString, int maxRetry) {
+	private boolean testHttpHealth(String testUrl, String assumeString, int maxRetry, int interval) {
 		// Wait for the 80 port to open.
 		boolean failed = true;
 		while (failed) {
@@ -1922,7 +1944,7 @@ public class Jiu {
 					break;
 				}
 			} finally {
-				h.wait(100000);
+				h.wait(interval*1000);
 			}
 		}
 		return !failed;
@@ -1947,7 +1969,7 @@ public class Jiu {
 		String stage1SubnetCidr = "10.77.1.0/24";
 		String stage1SubnetName = "stagingsn";*/
 
-		String stage2ImageName = "prodDemoImage";
+		String stage2ImageName = "NextWebServerImage";
 		String stage2InstanceName = stage1InstanceName;
 
 		// Step 1: Create a Staging VCN.
@@ -2008,7 +2030,7 @@ public class Jiu {
 		String testUrl = "http://" + this.printInstanceIpByName(stage1InstanceName, "private", profile)
 				+ "/index-test.html";
 		sk.printTitle(0, "Checking Stage1");
-		boolean stage1Passed = this.testHttpHealth(testUrl, "_SUCCESS", 30);
+		boolean stage1Passed = this.testHttpHealth(testUrl, "_SUCCESS", 30, 100);
 		if (!stage1Passed) {
 			sk.printResult(0, true, "!! Delivery aborted !!");
 			System.exit(-1);
@@ -2045,7 +2067,7 @@ public class Jiu {
 		sk.printTitle(0, "Checking Stage2");
 		String testUrlStage2 = "http://" + this.printInstanceIpByName(stage2InstanceName, "private", profile)
 				+ "/index.html";
-		boolean stage2Passed = this.testHttpHealth(testUrlStage2, "Welcome", 30);
+		boolean stage2Passed = this.testHttpHealth(testUrlStage2, "Welcome", 30, 100);
 		if (!stage2Passed) {
 			sk.printResult(0, true, "!! Deployment aborted !!");
 			System.exit(-1);
@@ -2058,8 +2080,8 @@ public class Jiu {
 
 		// Step 11: Register new prod webserver instance to load balancer.
 		this.addLbBackend(stage2InstanceName, "80", loadbalancerName, backendSetName, profile);
-		String lbIp = this.showLbInVcn(loadbalancerName, profile).get(0).getIpAddresses().get(0).getIpAddress();
-		boolean newWebServerRegistered = this.testHttpHealth("http://"+lbIp+"/index.html", "Welcome to BMC "+stage2InstanceName, 10);
+		String lbIp = this.showLbInVcn(loadbalancerName, webserverVcnName, profile).get(0).getIpAddresses().get(0).getIpAddress();
+		boolean newWebServerRegistered = this.testHttpHealth("http://"+lbIp+"/index.html", "Welcome to BMC "+stage2InstanceName, 200, 5);
 		if(!newWebServerRegistered){
 			sk.printResult(0, true, "!! Deployment aborted !!");
 			System.exit(-1);
@@ -2072,8 +2094,10 @@ public class Jiu {
 		sk.printResult(0, true, webserverName+" connection drained. Deployment continue.");
 		
 		// Step 13: Destroy old prod webserver instance.
+		this.removeLbBackend(loadbalancerName, backendSetName, webserverName, "80", profile);
+		sk.printResult(0, true, webserverName+" removed from backend set. Deployment continue");
 		this.destroyInstanceInVcn(webserverName, webserverVcnName, profile);
-		sk.printResult(0, true, webserverName+" removed. Deployment finished.");
+		sk.printResult(0, true, webserverName+" terminated. Deployment finished.");
 		
 		// Step 14: Finish.
 

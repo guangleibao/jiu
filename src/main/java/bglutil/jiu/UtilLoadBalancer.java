@@ -19,6 +19,7 @@ import com.oracle.bmc.loadbalancer.requests.CreateBackendRequest;
 import com.oracle.bmc.loadbalancer.requests.CreateBackendSetRequest;
 import com.oracle.bmc.loadbalancer.requests.CreateListenerRequest;
 import com.oracle.bmc.loadbalancer.requests.CreateLoadBalancerRequest;
+import com.oracle.bmc.loadbalancer.requests.DeleteBackendRequest;
 import com.oracle.bmc.loadbalancer.requests.DeleteLoadBalancerRequest;
 import com.oracle.bmc.loadbalancer.requests.GetBackendRequest;
 import com.oracle.bmc.loadbalancer.requests.ListLoadBalancersRequest;
@@ -143,6 +144,23 @@ public class UtilLoadBalancer extends UtilMain{
 						.ipAddress(backendIpAddress).port(port).weight(10)
 						.build()).build()).getOpcWorkRequestId();
 		return h.waitForWorkReqeustStatus(lb, wrId, "Adding Backend "+backendIpAddress+" to "+backendSetName, false).getWorkRequest();
+	}
+	
+	/**
+	 * Delete backend server from backendset.
+	 * @param lb
+	 * @param backendSetName
+	 * @param lbId
+	 * @param backendIpAddress
+	 * @param port
+	 * @return
+	 * @throws Exception
+	 */
+	public WorkRequest removeBackendFromBackendSet(LoadBalancer lb, String backendSetName, String lbId, String backendIpAddress, int port) throws Exception{
+		String wrId = lb.deleteBackend(DeleteBackendRequest.builder().loadBalancerId(lbId).backendSetName(backendSetName)
+				.backendName(backendIpAddress+":"+Integer.toString(port)).build()).getOpcWorkRequestId();
+		return h.waitForWorkReqeustStatus(lb, wrId, "Deleting Backend "+backendIpAddress+" from "+backendSetName, true).getWorkRequest();
+		
 	}
 	
 	/**
