@@ -28,7 +28,12 @@ public class Config {
 		StringBuffer sb = new StringBuffer();
 		String line = null;
 		try {
-			BufferedReader br = new BufferedReader(new FileReader(Config.getConfigFileReader(profile).get("public_key_file")));
+			String filepath = Config.getConfigFileReader(profile).get("public_key_file");
+			if(filepath.startsWith("~")){
+				String userHome = System.getProperty("user.home").toString();
+				filepath = filepath.replace("~",userHome);
+			}
+			BufferedReader br = new BufferedReader(new FileReader(filepath));
 			line = br.readLine();
 			while(line!=null){
 				sb.append(line); // No newline appending.

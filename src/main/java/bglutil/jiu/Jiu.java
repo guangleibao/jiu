@@ -664,7 +664,7 @@ public class Jiu {
 		sk.printResult(0, true,
 				"*IMPORTANT NOTE & MUST READ: https://docs.us-phoenix-1.oraclecloud.com/Content/Block/Tasks/connectingtoavolume.htm");
 	}
-
+	
 	/**
 	 * Launch a new VM instance.
 	 * 
