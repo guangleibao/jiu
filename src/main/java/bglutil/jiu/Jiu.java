@@ -1936,17 +1936,18 @@ public class Jiu {
 		UtilCompute uc = new UtilCompute();
 		String compartmentId = Config.getMyCompartmentId(profile);
 
-		String stage1InstanceName = "stagingvm";
+		String stage1InstanceName = "new"+webserverName;
+		/*
 		String stage1Cidr = "10.77.0.0/16";
 		String stage1VcnName = "stagingvcn";
 		String stage1IgwName = "stagingigw";
 		String stage1RouteTableName = "stagingrt";
 		String stage1SecListName = "stagingsl";
 		String stage1SubnetCidr = "10.77.1.0/24";
-		String stage1SubnetName = "stagingsn";
+		String stage1SubnetName = "stagingsn";*/
 
 		String stage2ImageName = "prodDemoImage";
-		String stage2InstanceName = "new" + webserverName;
+		String stage2InstanceName = stage1InstanceName;
 
 		/**
 		 * Step 1: Create a Staging VCN. Step 2: Create IGW and Routing Table.
@@ -2000,8 +2001,14 @@ public class Jiu {
 				+ "sed -i -e 's/SELINUX=enforcing/SELINUX=disabled/' /etc/selinux/config\n"
 				+ "setenforce 0\n"
 				+ "service httpd stop\n" + "rm -f /var/www/html/index-test.html\n"
-				+ "yum -y update" + " && yum -y install httpd" + " && echo \"_SUCCESS\" > /var/www/html/index-test.html"
-				+ " && chmod a+r /var/www/html/index-test.html" + " && service httpd start\n";
+				+ "yum -y update" + " && yum -y install httpd" 
+				+ " && NAME=`curl -s http://169.254.169.254/opc/v1/instance/ | grep displayName | sed 's/ \\{1,\\}\\\"displayName\" : \\\"//g' | sed 's/\\\", \\{0,\\}//g'`"
+				+ " && echo Welcome to BMC ${NAME}! > /var/www/html/index.html" 
+				+ " && chmod a+r /var/www/html/index.html"
+				+ " && service httpd start" 
+				+ " && chkconfig httpd on"
+				+ " && echo \"_SUCCESS\" > /var/www/html/index-test.html"
+				+ " && chmod a+r /var/www/html/index-test.html\n";
 		sk.printTitle(0, "Staging instance launching using following userdata:");
 		System.out.println(userdata);
 		this.createInstanceWithBase64Userdata(stage1InstanceName, webserverVcnName, webserverSubnetName,
@@ -2034,9 +2041,7 @@ public class Jiu {
 
 		// Step 9: Create a new web server instance from the new image。
 		String userdataForNewWebServer = "#!/bin/bash\n"
-				+ "NAME=`curl -s http://169.254.169.254/opc/v1/instance/ | grep displayName | sed 's/ \\{1,\\}\\\"displayName\" : \\\"//g' | sed 's/\\\", \\{0,\\}//g'`\n"
-				+ "echo Welcome to BMC ${NAME}! > /var/www/html/index.html\n" + "chmod a+rx /var/www/html/index.html\n"
-				+ "service httpd start\n" + "chkconfig httpd on\n";
+				+ "# N/A\n";
 		sk.printTitle(0, "New instance launching using following userdata:");
 		System.out.println(userdataForNewWebServer);
 		this.createInstanceWithBase64Userdata(stage2InstanceName, webserverVcnName, webserverSubnetName, stage2ImageName,
@@ -2093,36 +2098,6 @@ public class Jiu {
 		String ocid = Config.getConfigFileReader(profile).get("bastionseclist");
 		un.secListRemoveIngressBastionTcpPort(vn, ocid, "22");
 		sk.printResult(0, true, "SSH for Bastion seclist " + ocid + " closed.");
-	}
-
-	/**
-	 * A version of demoCreateInstanceGroupInfra
-	 * 
-	 * @param namePrefix
-	 * @param count
-	 * @param userdataFilePath
-	 * @param profile
-	 * @throws Exception
-	 */
-	public void demoCreateInstanceGroupInfraOl73_201704180(String namePrefix, String count, String userdataFilePath,
-			String profile) throws Exception {
-		h.help(namePrefix, "<resource-name-prefix> <instance-count> <user-data-file-path> <profile-name>");
-		this.demoCreateInstanceGroupInfra(namePrefix, "7.3", "2017.04.18-0", count, userdataFilePath, profile);
-	}
-
-	/**
-	 * A version of demoCreateInstanceGroupInfra
-	 * 
-	 * @param namePrefix
-	 * @param count
-	 * @param userdataFilePath
-	 * @param profile
-	 * @throws Exception
-	 */
-	public void demoCreateInstanceGroupInfraOl73_201707170(String namePrefix, String count, String userdataFilePath,
-			String profile) throws Exception {
-		h.help(namePrefix, "<resource-name-prefix> <instance-count> <user-data-file-path> <profile-name>");
-		this.demoCreateInstanceGroupInfra(namePrefix, "7.3", "2017.07.17-0", count, userdataFilePath, profile);
 	}
 
 	/**
@@ -2220,34 +2195,6 @@ public class Jiu {
 	public void demoPrepareForPxe(String namePrefix, String bastionUserdataFilePath, String profile) throws Exception {
 		this.demoCreateInstanceGroupInfra(namePrefix, "7.3", "2017.07.17-0", "1", bastionUserdataFilePath, profile);
 
-	}
-
-	/**
-	 * A version of demoCreateSingleBastionInfra.
-	 * 
-	 * @param namePrefix
-	 * @param userdataFilePath
-	 * @param profile
-	 * @throws Exception
-	 */
-	public void demoCreateSingleBastionInfraOl73_201704180(String namePrefix, String userdataFilePath, String profile)
-			throws Exception {
-		h.help(namePrefix, "<resource-name-prefix> <user-data-file-path> <profile-name>");
-		this.demoCreateSingleBastionInfra(namePrefix, "7.3", "2017.04.18-0", userdataFilePath, profile);
-	}
-
-	/**
-	 * A version of demoCreateSingleBastionInfra.
-	 * 
-	 * @param namePrefix
-	 * @param userdataFilePath
-	 * @param profile
-	 * @throws Exception
-	 */
-	public void demoCreateSingleBastionInfraOl73_201707170(String namePrefix, String userdataFilePath, String profile)
-			throws Exception {
-		h.help(namePrefix, "<resource-name-prefix> <user-data-file-path> <profile-name>");
-		this.demoCreateSingleBastionInfra(namePrefix, "7.3", "2017.07.17-0", userdataFilePath, profile);
 	}
 
 	/**
@@ -2361,18 +2308,6 @@ public class Jiu {
 				Instance.LifecycleState.Running);
 		this.showVcn(prefix + "vcn", profile);
 		sk.printTitle(0, "End");
-	}
-
-	/**
-	 * A version of demoCreateSimpleWebInfra.
-	 * 
-	 * @param namePrefix
-	 * @param profile
-	 * @throws Exception
-	 */
-	public void demoCreateSimpleWebInfraOl73_201704180(String namePrefix, String profile) throws Exception {
-		h.help(namePrefix, "<resource-name-prefix> <profile-name>");
-		this.demoCreateSimpleWebInfra(namePrefix, "7.3", "2017.04.18-0", profile);
 	}
 	
 	/**
