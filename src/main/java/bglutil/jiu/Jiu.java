@@ -1950,7 +1950,7 @@ public class Jiu {
 
 	public void demoYumUpdateWebServer(String webserverName, String webserverVcnName, String webserverSubnetName,
 			String loadbalancerName, String backendSetName, String profile) throws Exception {
-		h.help(webserverName, "<prod-webserer-for-replacinng> <webserver-vcn> <new-webserver-subnet> <frontend-lb> <profile>");
+		h.help(webserverName, "<prod-webserer-for-replacinng> <webserver-vcn> <new-webserver-subnet> <frontend-lb> <backend-set-name> <profile>");
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
 		Compute c = Client.getComputeClient(profile);
 		UtilNetwork un = new UtilNetwork();
