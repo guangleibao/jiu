@@ -1,8 +1,8 @@
-# Oracle Bare Metal Cloud Tool for Demo Purpose #
+# Oracle Cloud Infrastructure Tool for Demo Purpose #
 
-**No file in this repo provides production warranty!! It's just for fun and for demo.**
+**No file in this repo provides production warranty!! It is just for fun, learning and demo purpose.**
 
-+ First time user please check [Oracle official site](https://docs.us-phoenix-1.oraclecloud.com/Content/API/SDKDocs/javasdk.htm) for Bare Metal Cloud Java SDK download, configure and install.
++ First time user please check [Oracle official site](https://docs.us-phoenix-1.oraclecloud.com/Content/API/SDKDocs/javasdk.htm) for Oracle Cloud Infrastructure Java SDK **download**, **configure** and **install**.
 + Current SDK [download page](https://github.com/oracle/bmcs-java-sdk/releases).
 
 Config file **`~/.oraclebmc/config`** properties descriptions to run `Jiu`:
