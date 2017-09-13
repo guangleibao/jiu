@@ -1947,61 +1947,29 @@ public class Jiu {
 		}
 		return !failed;
 	}
-
+	
+	/**
+	 * Execute "yum -y update" behide LB in Oracle Cloud fashion.
+	 * @param webserverName
+	 * @param webserverVcnName
+	 * @param webserverSubnetName
+	 * @param loadbalancerName
+	 * @param backendSetName
+	 * @param profile
+	 * @throws Exception
+	 */
 	public void demoYumUpdateWebServer(String webserverName, String webserverVcnName, String webserverSubnetName,
 			String loadbalancerName, String backendSetName, String profile) throws Exception {
 		h.help(webserverName, "<prod-webserer-for-replacinng> <webserver-vcn> <new-webserver-subnet> <frontend-lb> <backend-set-name> <profile>");
-		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
 		Compute c = Client.getComputeClient(profile);
-		UtilNetwork un = new UtilNetwork();
 		UtilCompute uc = new UtilCompute();
 		String compartmentId = Config.getMyCompartmentId(profile);
 
 		String stage1InstanceName = "new"+webserverName;
-		/*
-		String stage1Cidr = "10.77.0.0/16";
-		String stage1VcnName = "stagingvcn";
-		String stage1IgwName = "stagingigw";
-		String stage1RouteTableName = "stagingrt";
-		String stage1SecListName = "stagingsl";
-		String stage1SubnetCidr = "10.77.1.0/24";
-		String stage1SubnetName = "stagingsn";*/
-
 		String stage2ImageName = "NextWebServerImage";
 		String stage2InstanceName = stage1InstanceName;
 
-		// Step 1: Create a Staging VCN.
-		/*
-		Vcn stagingVcn = this.createVcn(stage1VcnName, stage1Cidr, profile);
-		String stagingVcnId = stagingVcn.getId();*/
-
-		// Step 2: Create IGW and Routing Table.
-		/*
-		InternetGateway igw = un.createIgw(vn, compartmentId, stagingVcnId, stage1IgwName);
-		RouteRule toIgw = RouteRule.builder().cidrBlock("0.0.0.0/0").networkEntityId(igw.getId()).build();
-		List<RouteRule> publicRouteRules = new ArrayList<RouteRule>();
-		publicRouteRules.add(toIgw);
-		RouteTable publicRouteTable = un.createRouteTable(vn, compartmentId, stagingVcnId, stage1RouteTableName,
-				publicRouteRules);*/
-
-		// Step 3: Create a SecList for image creation.
-		/*
-		List<EgressSecurityRule> erAllowAll = un.getEgressAllowAllRules();
-		List<IngressSecurityRule> irStagingWebServer = un
-				.getPublicLoadBalancerIngressSecurityRules(new int[] { 80, 22 });
-		SecurityList stagingWebServerSecList = un.createSecList(vn, compartmentId, stagingVcnId, stage1SecListName,
-				irStagingWebServer, erAllowAll);
-		List<String> stagingWebServerSecLists = new ArrayList<String>();
-		stagingWebServerSecLists.add(stagingWebServerSecList.getId());*/
-
-		// Step 4: Create a Subnet for image creation.
-		/*
-		un.createSubnet(vn, compartmentId, stagingVcnId, stage1SubnetName, stage1SubnetName, stage1SubnetCidr,
-				this.showAd(profile).get(2).getName(), stagingVcn.getDefaultDhcpOptionsId(), publicRouteTable.getId(),
-				stagingWebServerSecLists, "For yum update staging", false);*/
-
-		// Step 5: Create a new instance from the old image for image creation.
-		// And yum update.
+		// Step 1:
 		Instance oldInstance = uc.getInstanceByName(c, webserverName, compartmentId);
 		String imageIdOfOldInstance = oldInstance.getImageId();
 		String imageNameOfOldInstance = c.getImage(GetImageRequest.builder().imageId(imageIdOfOldInstance).build())
@@ -2024,7 +1992,8 @@ public class Jiu {
 		this.createInstanceWithBase64Userdata(stage1InstanceName, webserverVcnName, webserverSubnetName,
 				imageNameOfOldInstance, "VM.Standard1.1", h.base64Encode(userdata), profile);
 		sk.printTitle(0, "Staging instance ready for check.");
-		// Step 6: Check stage1. Abort if check fails.
+		
+		// Step 2:
 		String testUrl = "http://" + this.printInstanceIpByName(stage1InstanceName, "private", profile)
 				+ "/index-test.html";
 		sk.printTitle(0, "Checking Stage1");
@@ -2035,7 +2004,7 @@ public class Jiu {
 		}
 		sk.printResult(0, true, "Check passed. Delivery continue.");
 		
-		// Step 7: Create a new image.
+		// Step 3:
 		String imageId = this.createImage(stage2ImageName, stage1InstanceName, profile);
 		while(true){
 			h.wait(100000);
@@ -2047,12 +2016,11 @@ public class Jiu {
 		}
 		sk.printResult(0, true, "Image created. Delivery continue.");
 		
-		// Step 8: Purge instance(s) in staging VCN.
-		//this.purgeVcn(stage1InstanceName, profile);
+		// Step 4:
 		this.destroyInstanceInVcn(stage1InstanceName, webserverVcnName, profile);
 		sk.printResult(0, true, "Staging instance removed. Delivery finished.");
 
-		// Step 9: Create a new web server instance from the new image。
+		// Step 5:
 		String userdataForNewWebServer = "#!/bin/bash\n"
 				+ "# N/A\n";
 		sk.printTitle(0, "New instance launching using following userdata:");
@@ -2061,23 +2029,21 @@ public class Jiu {
 				oldInstance.getShape(), h.base64Encode(userdataForNewWebServer), profile);
 		sk.printResult(0, true, "New webserver ready for check. Deployment continue.");
 		
-		// Step 10: Check stage2. Abort if check fails.
+		// Step 6:
 		sk.printTitle(0, "Checking Stage2");
 		String testUrlStage2 = "http://" + this.printInstanceIpByName(stage2InstanceName, "private", profile)
 				+ "/index.html";
-		boolean stage2Passed = this.testHttpHealth(testUrlStage2, "Welcome", 30, 100);
+		boolean stage2Passed = this.testHttpHealth(testUrlStage2, "Welcome to BMC", 30, 100);
 		if (!stage2Passed) {
 			sk.printResult(0, true, "!! Deployment aborted !!");
 			System.exit(-1);
 		}
 		sk.printResult(0, true, "Check passed. Deployment continue.");
 
-		// Step 10: Destroy everything in staging VCN and VCN itself.
-		/*
-		this.nukeVcn("staging", profile);*/
-
-		// Step 11: Register new prod webserver instance to load balancer.
+		// Step 7:
 		this.addLbBackend(stage2InstanceName, "80", loadbalancerName, backendSetName, profile);
+		
+		// Step 8:
 		String lbIp = this.showLbInVcn(loadbalancerName, webserverVcnName, profile).get(0).getIpAddresses().get(0).getIpAddress();
 		boolean newWebServerRegistered = this.testHttpHealth("http://"+lbIp+"/index.html", "Welcome to BMC "+stage2InstanceName, 200, 5);
 		if(!newWebServerRegistered){
@@ -2086,18 +2052,18 @@ public class Jiu {
 		}
 		sk.printResult(0, true, "Load Balancer check passed. Deployment continue.");
 		
-		// Step 12: Drain connections from old prod webserver instance.
+		// Step 9:
 		String webserverIp = this.printInstanceIpByName(webserverName, "private", profile);
 		this.changeLbBackendDrain(loadbalancerName, backendSetName, webserverIp+":"+80, "true", profile);
 		sk.printResult(0, true, webserverName+" connection drained. Deployment continue.");
 		
-		// Step 13: Destroy old prod webserver instance.
+		// Step 10:
 		this.removeLbBackend(loadbalancerName, backendSetName, webserverName, "80", profile);
 		sk.printResult(0, true, webserverName+" removed from backend set. Deployment continue");
+		
+		// Step 11:
 		this.destroyInstanceInVcn(webserverName, webserverVcnName, profile);
 		sk.printResult(0, true, webserverName+" terminated. Deployment finished.");
-		
-		// Step 14: Finish.
 
 	}
 
@@ -2657,30 +2623,6 @@ public class Jiu {
 	// FUN END //
 
 	/**
-	 * REST call.
-	 * 
-	 * @param method,
-	 *            lowercase
-	 * @param apiVersion
-	 * @param path
-	 * @param resource
-	 * @param parameter
-	 *            {p1:v1,p2:v2,p3:v3}
-	 * @param profile
-	 * @throws IOException
-	 */
-	// TODO
-	/*
-	 * public void restCall(String method, String apiVersion, String slashPath,
-	 * String profile) throws IOException{ h.help(method,
-	 * "<method> <api-version> <slash-separated-path> <profile>");
-	 * sk.printTitle(0, "/"+apiVersion+"/"+slashPath); String[] ret =
-	 * UtilMain.restCall(method, apiVersion, slashPath.split("/"), profile);
-	 * sk.printResult(0, true, "Response Headers:"); System.out.println(ret[0]);
-	 * sk.printResult(0, true, "Response Body:"); System.out.println(ret[1]); }
-	 */
-
-	/**
 	 * The real program.
 	 * 
 	 * @param args
@@ -2694,20 +2636,11 @@ public class Jiu {
 			sk.printResult(0, true, "SUB-COMMANDS:");
 			TreeSet<String> ts = new TreeSet<String>();
 			StringBuffer sb = null;
-			/*
-			 * Method[] allMethods = Jiu.class.getDeclaredMethods();
-			 * ArrayList<Method> methods = new ArrayList<Method>(); for (Method
-			 * m : allMethods) { if (Modifier.isPublic(m.getModifiers()) &&
-			 * !m.getName().equals("test")) { methods.add(m); } }
-			 */
 			ArrayList<Method> methods = Helper.getJiuTools();
 			String mn = null;
 			for (Method m : methods) {
 				sb = new StringBuffer();
 				mn = m.getName();
-				/*
-				 * if (SKIPPED_METHODS.contains(mn)) { continue; }
-				 */
 				sb.append(mn + ": ");
 				int parameterCount = m.getParameterTypes().length;
 				for (int i = 0; i < parameterCount; i++) {
@@ -2732,41 +2665,10 @@ public class Jiu {
 			}
 		}
 		if (SKIPPED_METHODS.contains(args[0])) {
-			// System.out.println("options unkown.");
 			return;
 		}
 		for (Method m : methods) {
 			if (m.getName().equals(args[0])) {
-				// System.out.println(m.getName()+" :: "+args[0]);
-				// Pass through #1: putItemToDdb, #2: deleteItemFromDdb
-				if (args[0].equals("ddbDeleteItemString")) {
-					String[] parameters = Arrays.copyOfRange(args, 1, args.length);
-					if (parameters[0].equals("-h")) {
-						System.out.println("<profile> <table-name> <pk-attr-name> <pk-attr-value> ...");
-						return;
-					}
-					// u.ddbDeleteItemString(parameters);
-					return;
-				}
-				if (args[0].equals("ddbPutItemString")) {
-					String[] parameters = Arrays.copyOfRange(args, 1, args.length);
-					if (parameters[0].equals("-h")) {
-						System.out.println("<profile> <table-name> <attr-key-name> <attr-value> ...");
-						return;
-					}
-					// u.ddbPutItemString(parameters);
-					return;
-				}
-				if (args[0].equals("commandsToAmiAsgSoftBeijing")) {
-					String[] parameters = Arrays.copyOfRange(args, 1, args.length);
-					if (parameters[0].equals("-h")) {
-						System.out.println(
-								"<asg-name> <wait-mins-during-swapping> <file:///path-to-script-file> | \\\"<command1>\\\", \\\"<command2>\\\", \\\"<...>\\\"");
-						return;
-					}
-					// commandsToAmiAsgSoftBeijing(parameters);
-					return;
-				}
 				// Options filter
 				Class<?>[] paramTypes = m.getParameterTypes();
 				if (paramTypes == null || paramTypes.length == 0
@@ -2800,11 +2702,5 @@ public class Jiu {
 
 	public static void main(String[] args) throws Exception {
 		coreV2(args);
-		/*
-		 * Jiu j = new Jiu(); j.createVmInstance("test1", "Test-plus",
-		 * "Public Subnet Lgmh:PHX-AD-1", "fm_optimizer_vm", "VM.Standard1.1",
-		 * "/Users/guanglei/git/fuf/bootstrap-bastion.sh", "test");
-		 */
-
 	}
 }

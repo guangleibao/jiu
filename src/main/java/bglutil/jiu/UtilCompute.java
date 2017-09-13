@@ -258,37 +258,37 @@ public class UtilCompute extends UtilMain{
 			String sh = s.getShape();
 			String ss = null;
 			if(sh.equals("BM.Standard1.36")){
-				ss = sh+" [36 OCPU 256GB RAM]";
+				ss = "bm003 "+sh+" [36 OCPU 72 vCPU 256GB RAM]";
 			}
 			else if(sh.equals("BM.HighIO1.36")){
-				ss = sh+" [36 OCPU 512GB RAM 12.8TB NVMe SSD]";
+				ss = "bm002 "+sh+" [36 OCPU 72 vCPU 512GB RAM 12.8TB NVMe SSD]";
 			}
 			else if(sh.equals("BM.DenseIO1.36")){
-				ss = sh+" [36 OCPU 512GB RAM 28.8TB NVMe SSD]";
+				ss = "bm001 "+sh+" [36 OCPU 72 vCPU 512GB RAM 28.8TB NVMe SSD]";
 			}
 			else if(sh.equals("VM.Standard1.1")){
-				ss = sh+" [1 OCPU 7GB RAM]";
+				ss = "vm008 " +sh+" [1 OCPU 2 vCPU 7GB RAM]";
 			}
 			else if(sh.equals("VM.Standard1.2")){
-				ss = sh+" [2 OCPU 14GB RAM]";
+				ss = "vm007 "+sh+" [2 OCPU 4 vCPU 14GB RAM]";
 			}
 			else if(sh.equals("VM.Standard1.4")){
-				ss = sh+" [4 OCPU 28GB RAM]";
+				ss = "vm006 "+sh+" [4 OCPU 8 vCPU 28GB RAM]";
 			}
 			else if(sh.equals("VM.Standard1.8")){
-				ss = sh+" [8 OCPU 56GB RAM]";
+				ss = "vm005 "+sh+" [8 OCPU 16 vCPU 56GB RAM]";
 			}
 			else if(sh.equals("VM.Standard1.16")){
-				ss = sh+" [16 OCPU 112GB RAM]";
+				ss = "vm004 "+sh+" [16 OCPU 32 vCPU 112GB RAM]";
 			}
 			else if(sh.equals("VM.DenseIO1.4")){
-				ss = sh+" [4 OCPU 60GB RAM 3.2TB NVMe SSD]";
+				ss = "vm003 "+sh+" [4 OCPU 8 vCPU 60GB RAM 3.2TB NVMe SSD]";
 			}
 			else if(sh.equals("VM.DenseIO1.8")){
-				ss = sh+" [8 OCPU 120GB RAM 6.4TB NVMe SSD]";
+				ss = "vm002 "+sh+" [8 OCPU 16 vCPU 120GB RAM 6.4TB NVMe SSD]";
 			}
 			else if(sh.equals("VM.DenseIO1.16")){
-				ss = sh+" [16 OCPU 240GB RAM 12.8TB NVMe SSD]";
+				ss = "vm001 "+sh+" [16 OCPU 32 vCPU 240GB RAM 12.8TB NVMe SSD]";
 			}
 			else{
 				ss = sh;
