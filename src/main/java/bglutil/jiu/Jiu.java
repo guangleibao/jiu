@@ -2110,8 +2110,8 @@ public class Jiu {
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void demoCreateLinuxInstanceGroupInfra(String namePrefix, String oracleLinuxRelease, String releaseDate,
-			String count, String userdataFilePath, String profile) throws Exception {
+	public void demoCreateLinuxInstanceGroupInfra(String namePrefix, String count, String oracleLinuxRelease, String releaseDate,
+			String userdataFilePath, String profile) throws Exception {
 		h.help(namePrefix,
 				"<demo-name-prefix> <instance-count> <ol-release: e.g: 7.3> <release-date: e.g: 2017.04.18-0> <userdata-file-path> <profile-name>");
 		String prefix = namePrefix != null ? namePrefix : "bgltest";
