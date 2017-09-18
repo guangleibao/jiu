@@ -2,7 +2,7 @@
 tenancy=ocid1.tenancy.oc1..ttttttttttttttt
 user=ocid1.user.oc1..uuuuuuuuuuuuu
 fingerprint=3f:................:55
-key_file=~/.oraclebmc/bmcs_api_key.pem
+key_file=~/.oci/bmcs_api_key.pem
 region=us-phoenix-1
 compartment=ocid1.compartment.oc1..cccccccccccccccc
 namespace=yournamespace
@@ -20,7 +20,7 @@ webserver2_user_data=~/demo/bootstrap-webserver2.sh
 tenancy=ocid1.tenancy.oc1..ttttttttttttttt
 user=ocid1.user.oc1..uuuuuuuuuuuuu
 fingerprint=3f:................:55
-key_file=~/.oraclebmc/bmcs_api_key.pem
+key_file=~/.oci/bmcs_api_key.pem
 region=us-phoenix-1
 compartment=ocid1.compartment.oc1..cccccccccccccccc
 namespace=yournamespace

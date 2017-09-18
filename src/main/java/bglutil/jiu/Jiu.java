@@ -107,7 +107,7 @@ import bglutil.jiu.common.Speaker;
 import bglutil.jiu.common.VcnAsset;
 
 /**
- * Jiu Jiu~ Oracle Bare Metal Cloud demos for fun.
+ * Jiu~ Oracle Cloud Infrastructure demos for fun.
  * 
  * @author bgl
  */
@@ -1832,7 +1832,7 @@ public class Jiu {
 	 */
 	public List<AvailabilityDomain> showAd(String profile) throws IOException {
 		h.help(profile, "<profile>");
-		sk.printTitle(0, "Bare Metal AD in " + Config.getConfigFileReader(profile).get("region"));
+		sk.printTitle(0, "OCI AD in " + Config.getConfigFileReader(profile).get("region"));
 		Identity id = Client.getIamClient(profile);
 		List<AvailabilityDomain> ads = id.listAvailabilityDomains(
 				ListAvailabilityDomainsRequest.builder().compartmentId(Config.getMyCompartmentId(profile)).build())
@@ -1894,7 +1894,7 @@ public class Jiu {
 	 * Show all regions.
 	 */
 	public void showRegionCode() {
-		sk.printTitle(0, "Bare Metal Regions");
+		sk.printTitle(0, "OCI Regions");
 		int i = 0;
 		for (Region r : Region.values()) {
 			sk.printResult(0, true, "(" + (++i) + ") " + r.getRegionId());

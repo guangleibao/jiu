@@ -5,7 +5,7 @@
 + First time user please check [Oracle official site](https://docs.us-phoenix-1.oraclecloud.com/Content/API/SDKDocs/javasdk.htm) for Oracle Cloud Infrastructure Java SDK **download**, **configure** and **install**.
 + Current SDK [download page](https://github.com/oracle/bmcs-java-sdk/releases).
 
-Config file **`~/.oraclebmc/config`** properties descriptions to run `Jiu`:
+Config file **`~/.oci/config`** properties descriptions to run `Jiu`:
 
 		[DEFAULT]
 		tenancy=<tenancy_ocid>
@@ -38,7 +38,7 @@ Config file **`~/.oraclebmc/config`** properties descriptions to run `Jiu`:
 
 + [Install Maven](https://maven.apache.org/install.html).  
 
-+ Edit `pom-sample.xml` to correct the `<bmc.jar.location>` property and rename it to `pom.xml`.
++ Edit `pom-sample.xml` to correct the `<oci.jar.location>` property and rename it to `pom.xml`.
 
 + `mvn pacakge`
 

@@ -56,7 +56,7 @@ public class Config {
 	 */
 	public static SimpleAuthenticationDetailsProvider getAuthProvider(String profile) throws IOException{
 		
-		ConfigFileReader.ConfigFile cf = ConfigFileReader.parse("~/.oraclebmc/config", profile.toUpperCase());
+		ConfigFileReader.ConfigFile cf = ConfigFileReader.parse(ConfigFileReader.DEFAULT_FILE_PATH, profile.toUpperCase());
 		Supplier<InputStream> ks = (Supplier<InputStream>) new SimplePrivateKeySupplier(cf.get("key_file"));
 		return SimpleAuthenticationDetailsProvider.builder()
 				.tenantId(cf.get("tenancy"))
@@ -72,7 +72,7 @@ public class Config {
 	 * @throws IOException
 	 */
 	public static ConfigFileReader.ConfigFile getConfigFileReader(String profile) throws IOException{
-		return ConfigFileReader.parse("~/.oraclebmc/config", profile.toUpperCase());
+		return ConfigFileReader.parse(ConfigFileReader.DEFAULT_FILE_PATH, profile.toUpperCase());
 	}
 	
 	/**
@@ -95,7 +95,7 @@ public class Config {
 	 * @throws IOException
 	 */
 	public static String getMyCompartmentId(String profile) throws IOException{
-		ConfigFileReader.ConfigFile cf = ConfigFileReader.parse("~/.oraclebmc/config", profile.toUpperCase());
+		ConfigFileReader.ConfigFile cf = ConfigFileReader.parse(ConfigFileReader.DEFAULT_FILE_PATH, profile.toUpperCase());
 		return cf.get("compartment");
 	}
 
