@@ -664,6 +664,21 @@ public class Jiu {
 	}
 	
 	/**
+	 * Create a new Oracle Linux compute instance with current image read from config file.  
+	 * @param name
+	 * @param vcnName
+	 * @param subnetName
+	 * @param shapeName
+	 * @param userdataFilePath
+	 * @param profile
+	 * @throws Exception 
+	 * @throws IOException 
+	 */
+	public void createCurrentOracleLinuxInstance(String name, String vcnName, String subnetName, String shapeName, String userdataFilePath, String profile) throws IOException, Exception{
+		this.createInstance(shapeName, vcnName, subnetName, Config.getCurrentOracleLinuxImage(profile), shapeName, userdataFilePath, profile);
+	}
+	
+	/**
 	 * Launch a new VM instance.
 	 * 
 	 * @param name
@@ -678,7 +693,7 @@ public class Jiu {
 	public void createInstance(String name, String vcnName, String subnetName, String imageName, String shapeName,
 			String userdataFilePath, String profile) throws Exception {
 		h.help(name, "<name> <vcn-name> <subnet-name> <image-name> <shape-name> <user-data-file-path> <profile>");
-		sk.printTitle(0, "Creating VM");
+		sk.printTitle(0, "Creating Compute Instance");
 		Compute c = Client.getComputeClient(profile);
 		UtilCompute uc = new UtilCompute();
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
@@ -700,7 +715,18 @@ public class Jiu {
 		}
 		sk.printTitle(0, "End");
 	}
-
+	
+	/**
+	 * Create new compute instance with base64 userdata. 
+	 * @param name
+	 * @param vcnName
+	 * @param subnetName
+	 * @param imageName
+	 * @param shapeName
+	 * @param userdataBase64
+	 * @param profile
+	 * @throws Exception
+	 */
 	public void createInstanceWithBase64Userdata(String name, String vcnName, String subnetName, String imageName,
 			String shapeName, String userdataBase64, String profile) throws Exception {
 		h.help(name, "<name> <vcn-name> <subnet-name> <image-name> <shape-name> <user-data-file-path> <profile>");

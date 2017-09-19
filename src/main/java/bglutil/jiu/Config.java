@@ -88,6 +88,11 @@ public class Config {
 		.readTimeoutMillis(rt).build());
 	}
 	
+	private static String getConf(String confKey, String profile) throws IOException{
+		ConfigFileReader.ConfigFile cf = ConfigFileReader.parse(ConfigFileReader.DEFAULT_FILE_PATH, profile.toUpperCase());
+		return cf.get(confKey);
+	}
+	
 	/**
 	 * Extract default compartmentId from default configuration file. The key must be 'compartment'.
 	 * @param profile
@@ -95,8 +100,17 @@ public class Config {
 	 * @throws IOException
 	 */
 	public static String getMyCompartmentId(String profile) throws IOException{
-		ConfigFileReader.ConfigFile cf = ConfigFileReader.parse(ConfigFileReader.DEFAULT_FILE_PATH, profile.toUpperCase());
-		return cf.get("compartment");
+		return getConf("compartment", profile);
+	}
+	
+	/**
+	 * Extract current oracle linux image from default configuration file. The key must be "current_ol_image".
+	 * @param profile
+	 * @return
+	 * @throws IOException
+	 */
+	public static String getCurrentOracleLinuxImage(String profile) throws IOException{
+		return getConf("current_ol_image", profile);
 	}
 
 }
