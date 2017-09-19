@@ -675,6 +675,7 @@ public class Jiu {
 	 * @throws IOException 
 	 */
 	public void createCurrentOracleLinuxInstance(String name, String vcnName, String subnetName, String shapeName, String userdataFilePath, String profile) throws IOException, Exception{
+		h.help(name, "<name> <vcn-name> <subnet-name> <shape-name> <user-data-file-path> <profile>");
 		this.createInstance(shapeName, vcnName, subnetName, Config.getCurrentOracleLinuxImage(profile), shapeName, userdataFilePath, profile);
 	}
 	
