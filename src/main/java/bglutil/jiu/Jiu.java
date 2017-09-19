@@ -540,7 +540,7 @@ public class Jiu {
 			String publicIpNeeded, String privateIp, String profile) throws Exception {
 		h.help(instanceName,
 				"<instance-name> <vnic-name> <vcn-name> <subnet-name> <public-ip-needed: yes|no> <private-ip-address: auto|CIDR> <profile>");
-		sk.printTitle(0, "Create a new VNIC add attach it to instance " + instanceName);
+		sk.printTitle(0, "Create a new VNIC "+vnicName+" and attach it to instance " + instanceName);
 		Compute c = Client.getComputeClient(profile);
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
 		UtilCompute uc = new UtilCompute();
@@ -553,6 +553,26 @@ public class Jiu {
 		String privateIpSetting = privateIp.equalsIgnoreCase("auto") ? null : privateIp;
 		uc.attachSecondaryVnic(c, vnicName + "-" + instanceName, instanceId, subnetId, assignPublicIp, vnicName,
 				vnicName, privateIpSetting);
+		sk.printTitle(0, "End");
+	}
+	
+	/**
+	 * Remove a secondary vnic from instance.
+	 * @param instanceName
+	 * @param vnicName
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void removeSecondaryVnicFromInstance(String instanceName, String vnicName, String profile) throws Exception{
+		h.help(instanceName,
+				"<instance-name> <vnic-name> <profile>");
+		sk.printTitle(0, "Remove the VNIC "+vnicName+" from instance " + instanceName);
+		Compute c = Client.getComputeClient(profile);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilCompute uc = new UtilCompute();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		String instanceId = uc.getInstanceByName(c, instanceName, compartmentId).getId();
+		uc.detachSecondaryVnic(c, vn, vnicName, instanceId);
 		sk.printTitle(0, "End");
 	}
 
@@ -676,7 +696,7 @@ public class Jiu {
 	 */
 	public void createCurrentOracleLinuxInstance(String name, String vcnName, String subnetName, String shapeName, String userdataFilePath, String profile) throws IOException, Exception{
 		h.help(name, "<name> <vcn-name> <subnet-name> <shape-name> <user-data-file-path> <profile>");
-		this.createInstance(shapeName, vcnName, subnetName, Config.getCurrentOracleLinuxImage(profile), shapeName, userdataFilePath, profile);
+		this.createInstance(name, vcnName, subnetName, Config.getCurrentOracleLinuxImage(profile), shapeName, userdataFilePath, profile);
 	}
 	
 	/**
@@ -1113,7 +1133,7 @@ public class Jiu {
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void createDefaultPublicSubnet(String name, String vcnName, String availabilityDomain, String cidr,
+	public void createPublicSubnetWithDefaultSettings(String name, String vcnName, String availabilityDomain, String cidr,
 			String profile) throws Exception {
 		h.help(name, "<name> <vcnname> <ad> <cidr> <profile>");
 		sk.printTitle(0, "Create Subnet - " + name);

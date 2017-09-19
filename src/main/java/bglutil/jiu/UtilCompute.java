@@ -466,6 +466,33 @@ public class UtilCompute extends UtilMain{
 		return res;
 	}
 	
+	public Instance getInstanceById(Compute c, String instanceId){
+		return c.getInstance(GetInstanceRequest.builder().instanceId(instanceId).build()).getInstance();
+	}
+	
+	public void detachSecondaryVnic(Compute c, VirtualNetwork vn, String name, String instanceId) throws Exception{
+		Instance i = this.getInstanceById(c, instanceId);
+		List<Vnic> vnics = this.getVnicByInstanceId(c, vn, instanceId, i.getCompartmentId());
+		String vnicId = null;
+		for(Vnic v:vnics){
+			if(v.getDisplayName().equals(name)){
+				vnicId = v.getId();
+				break;
+			}
+		}
+		List<VnicAttachment> vas = c.listVnicAttachments(ListVnicAttachmentsRequest.builder().compartmentId(i.getCompartmentId()).instanceId(instanceId).vnicId(vnicId).build()).getItems();
+		String vnicAttachmentId = null;
+		for(VnicAttachment va:vas){
+			if(va.getVnicId().equals(vnicId)){
+				vnicAttachmentId = va.getId();
+				break;
+			}
+		}
+		c.detachVnic(DetachVnicRequest.builder().vnicAttachmentId(vnicAttachmentId).build());
+		h.waitForVnicAttachmentStatus(c, vnicAttachmentId, VnicAttachment.LifecycleState.Detached, "Detaching "+name, true);
+	}
+	
+	
 	public void deleteImageByName(Compute c, String imageName, String compartmentId) throws Exception{
 		List<Image> li = c.listImages(ListImagesRequest.builder().displayName(imageName).compartmentId(compartmentId).build()).getItems();
 		for(Image i:li){
@@ -477,17 +504,5 @@ public class UtilCompute extends UtilMain{
 		
 	}
 	
-	public void detachSecondaryVnic(Compute c, VirtualNetwork vn, String name, String instanceId, String compartmentId) throws Exception{
-		List<Vnic> vnics = this.getVnicByInstanceId(c, vn, instanceId, compartmentId);
-		String vnicId = null;
-		for(Vnic v:vnics){
-			if(v.getDisplayName().equals(name)){
-				vnicId = v.getId();
-				break;
-			}
-		}
-		List<VnicAttachment> vas = c.listVnicAttachments(ListVnicAttachmentsRequest.builder().compartmentId(compartmentId).instanceId(instanceId).vnicId(vnicId).build()).getItems();
-		//TODO
-	}
-	
+
 }
