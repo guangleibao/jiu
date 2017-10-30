@@ -42,6 +42,7 @@ import com.oracle.bmc.core.model.IngressSecurityRule;
 import com.oracle.bmc.core.model.Instance;
 import com.oracle.bmc.core.model.InstanceCredentials;
 import com.oracle.bmc.core.model.InternetGateway;
+import com.oracle.bmc.core.model.PrivateIp;
 import com.oracle.bmc.core.model.RouteRule;
 import com.oracle.bmc.core.model.RouteTable;
 import com.oracle.bmc.core.model.SecurityList;
@@ -52,11 +53,13 @@ import com.oracle.bmc.core.model.VnicAttachment;
 import com.oracle.bmc.core.model.Volume;
 import com.oracle.bmc.core.model.VolumeAttachment;
 import com.oracle.bmc.core.requests.CaptureConsoleHistoryRequest;
+import com.oracle.bmc.core.requests.DeleteVolumeRequest;
 import com.oracle.bmc.core.requests.GetConsoleHistoryContentRequest;
 import com.oracle.bmc.core.requests.GetDrgRequest;
 import com.oracle.bmc.core.requests.GetImageRequest;
 import com.oracle.bmc.core.requests.GetInstanceRequest;
 import com.oracle.bmc.core.requests.GetInternetGatewayRequest;
+import com.oracle.bmc.core.requests.GetPrivateIpRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
 import com.oracle.bmc.core.requests.GetSubnetRequest;
 import com.oracle.bmc.core.requests.GetVcnRequest;
@@ -64,8 +67,10 @@ import com.oracle.bmc.core.requests.GetVolumeAttachmentRequest;
 import com.oracle.bmc.core.requests.GetWindowsInstanceInitialCredentialsRequest;
 import com.oracle.bmc.core.requests.InstanceActionRequest;
 import com.oracle.bmc.core.requests.ListInstancesRequest;
+import com.oracle.bmc.core.requests.ListPrivateIpsRequest;
 import com.oracle.bmc.core.requests.ListSubnetsRequest;
 import com.oracle.bmc.core.requests.ListVnicAttachmentsRequest;
+import com.oracle.bmc.core.requests.ListVolumesRequest;
 import com.oracle.bmc.core.responses.GetConsoleHistoryContentResponse;
 import com.oracle.bmc.core.responses.GetInstanceResponse;
 import com.oracle.bmc.identity.Identity;
@@ -164,9 +169,54 @@ public class Jiu {
 	}
 
 	// INTERNAL METHODS END //
+	
+	// GENERAL BEGIN //
+	
+	/**
+	 * Print the profile fingerprint.
+	 * @param profile
+	 * @throws IOException
+	 */
+	public void simpleShowFingerprint(String profile) throws IOException{
+		h.help(profile, "<profile>");
+		String fingerprint = Config.getConfigFileReader(profile).get("fingerprint");
+		System.out.println(fingerprint);
+	}
+	
+	/**
+	 * Print the profile user OCID.
+	 * @param profile
+	 * @throws IOException
+	 */
+	public void simpleShowUserId(String profile) throws IOException{
+		h.help(profile, "<profile>");
+		String user = Config.getConfigFileReader(profile).get("user");
+		System.out.println(user);
+	}
+	
+	/**
+	 * Print the profile tenancy OCID.
+	 * @param profile
+	 * @throws IOException
+	 */
+	public void simpleShowTenancy(String profile) throws IOException{
+		h.help(profile, "<profile>");
+		String tenancyId = Config.getConfigFileReader(profile).get("tenancy");
+		System.out.println(tenancyId);
+	}
+	
+	
+	// GENERAL END //
 
 	// OBJECT STORAGE BEGIN //
 
+	public void simpleShowObjectStorageEndpoint(String profile) throws NumberFormatException, IOException{
+		h.help(profile, "<profile>");
+		String region = Config.getConfigFileReader(profile).get("region");
+		String endpoint = "objectstorage."+region+".oraclecloud.com";
+		System.out.println(endpoint);
+	}
+	
 	/**
 	 * Delete object.
 	 * 
@@ -482,11 +532,11 @@ public class Jiu {
 	 * @throws NumberFormatException
 	 * @throws IOException
 	 */
-	public void showNamespace(String profile) throws NumberFormatException, IOException {
+	public void simpleShowNamespace(String profile) throws NumberFormatException, IOException {
 		h.help(profile, "<profile>");
 		ObjectStorage os = Client.getObjectStorageClient(profile);
 		UtilObjectStorage uos = new UtilObjectStorage();
-		sk.printTitle(0, "Namespace: " + uos.getNamespace(os));
+		System.out.println(uos.getNamespace(os));
 	}
 
 	// OBJECT STORAGE END //
@@ -536,10 +586,10 @@ public class Jiu {
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void addSecondaryVnicToInstance(String instanceName, String vnicName, String vcnName, String subnetName,
+	public void createSecondaryVnicToInstance(String instanceName, String vnicName, String vcnName, String subnetName,
 			String publicIpNeeded, String privateIp, String profile) throws Exception {
 		h.help(instanceName,
-				"<instance-name> <vnic-name> <vcn-name> <subnet-name> <public-ip-needed: yes|no> <private-ip-address: auto|CIDR> <profile>");
+				"<instance-name> <vnic-name> <vcn-name> <subnet-name> <public-ip-needed: yes|no> <private-ip-address: auto|address> <profile>");
 		sk.printTitle(0, "Create a new VNIC "+vnicName+" and attach it to instance " + instanceName);
 		Compute c = Client.getComputeClient(profile);
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
@@ -563,9 +613,9 @@ public class Jiu {
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void removeSecondaryVnicFromInstance(String instanceName, String vnicName, String profile) throws Exception{
-		h.help(instanceName,
-				"<instance-name> <vnic-name> <profile>");
+	public void removeSecondaryVnicFromInstance(String vnicName, String instanceName, String profile) throws Exception{
+		h.help(vnicName,
+				"<vnic-name> <instance-name> <profile>");
 		sk.printTitle(0, "Remove the VNIC "+vnicName+" from instance " + instanceName);
 		Compute c = Client.getComputeClient(profile);
 		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
@@ -573,6 +623,58 @@ public class Jiu {
 		String compartmentId = Config.getMyCompartmentId(profile);
 		String instanceId = uc.getInstanceByName(c, instanceName, compartmentId).getId();
 		uc.detachSecondaryVnic(c, vn, vnicName, instanceId);
+		sk.printTitle(0, "End");
+	}
+	
+	/**
+	 * Create secondary private ip address for vnic.
+	 * @param vnicName
+	 * @param instanceName
+	 * @param privateIp
+	 * @param ipDisplayName
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
+	public void createSecondaryPrivateIpForVnic(String vnicName, String instanceName, String privateIp, String ipDisplayName, String profile) throws NumberFormatException, IOException{
+		h.help(vnicName,"<vnic-name> <instance-name> <private-ip-address> <display-name-for-private-ip-address> <profile>");
+		sk.printTitle(0, "Adding Private IP address "+privateIp+" to VNIC "+vnicName+" for instance " + instanceName);
+		Compute c = Client.getComputeClient(profile);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilCompute uc = new UtilCompute();
+		UtilNetwork un = new UtilNetwork();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		String instanceId = uc.getInstanceByName(c, instanceName, compartmentId).getId();
+		Vnic vnic = uc.getVnicByInstanceIdAndVnicName(c, vn, instanceId, vnicName, compartmentId);
+		un.createPrivateIp(vn, ipDisplayName, vnic.getId(), privateIp, ipDisplayName);
+		System.out.println("# Sample persistent configuration for Linux: /etc/sysconfig/network-scripts/ifcfg-ens3:0");
+		System.out.println("DEVICE=\"ens3:0\"\n"+
+						"BOOTPROTO=static\n"+
+						"IPADDR="+privateIp+"\n"+
+						"NETMASK=255.255.255.0\n"+
+						"ONBOOT=yes");
+		sk.printTitle(0, "End");
+	}
+	
+	/**
+	 * Remove private ip address
+	 * @param vcnName
+	 * @param subnetName
+	 * @param instanceName
+	 * @param vnicName
+	 * @param ipaddress
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
+	public void removeSecondaryPrivateIpFromVnic(String vcnName, String subnetName, String instanceName, String vnicName, String ipaddress, String profile) throws NumberFormatException, IOException{
+		h.help(vcnName,"<vcn-name> <subnet-name> <instance-name> <vnic-name> <private-ip-address> <profile>");
+		sk.printTitle(0, "Removing Private IP address "+ipaddress+" from VNIC "+vnicName+" for instance " + instanceName);
+		Compute c = Client.getComputeClient(profile);
+		VirtualNetwork vn = Client.getVirtualNetworkClient(profile);
+		UtilNetwork un = new UtilNetwork();
+		String compartmentId = Config.getMyCompartmentId(profile);
+		un.deletePrivateIp(c, vn, vcnName, subnetName, vnicName, instanceName, ipaddress, compartmentId);
 		sk.printTitle(0, "End");
 	}
 
@@ -640,6 +742,27 @@ public class Jiu {
 		}
 		h.waitForInstanceStatus(c, instanceId, state, "waiting", false);
 		sk.printTitle(0, "End");
+	}
+	
+	/**
+	 * Purge all volumes in profile.
+	 * @param namePrefix
+	 * @param profile
+	 * @throws Exception
+	 */
+	public void purgeVolume(String namePrefix, String profile) throws Exception {
+		h.help(namePrefix, "<block-name-prefix|?> <profile>");
+		Blockstorage bs = Client.getBlockstorageClient(profile);
+		sk.printTitle(0, "Purge all Block Volumes with Name Prefix " + namePrefix);
+		List<Volume> vols = this.showVolumeAll(profile);
+		sk.printTitle(0, "Purge Begin " + namePrefix);
+		for(Volume v:vols){
+			if(namePrefix.equals("?") || v.getDisplayName().startsWith(namePrefix)){
+				bs.deleteVolume(DeleteVolumeRequest.builder().volumeId(v.getId()).build());
+				h.waitForVolumeStatus(bs, v.getId(), Volume.LifecycleState.Terminated, "Deleting volume "+v.getDisplayName(), true);
+			}
+		}
+		sk.printTitle(0, "Block Volumes with name prefix " + namePrefix + " purged.");
 	}
 
 	/**
@@ -839,7 +962,32 @@ public class Jiu {
 		}
 		sk.printTitle(0, "End");
 	}
-
+	
+	/**
+	 * Show all block volumes in profile.
+	 * @param profile
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
+	public List<Volume> showVolumeAll(String profile) throws NumberFormatException, IOException{
+		h.help(profile, "<profile>");
+		sk.printTitle(0,"All volumes for the profile "+profile+" visibility.");
+		Blockstorage bs = Client.getBlockstorageClient(profile);
+		String compartmentId = Config.getMyCompartmentId(profile);
+		List<AvailabilityDomain> ads = this.showAd(profile);
+		List<Volume> allVolumes = new ArrayList<Volume>();
+		for(AvailabilityDomain ad:ads){
+			sk.printResult(1, true, "AD: "+ad.getName());
+			List<Volume> vols = bs.listVolumes(ListVolumesRequest.builder().compartmentId(compartmentId).availabilityDomain(ad.getName()).build()).getItems();
+			allVolumes.addAll(vols);
+			for(Volume v:vols){
+				sk.printResult(2, true, v.getDisplayName()+", "+v.getSizeInGBs()+"GB, "+v.getLifecycleState().getValue());
+			}
+		}
+		sk.printTitle(0, "End");
+		return allVolumes;
+	}
+	
 	/**
 	 * Show all volumes that vm can utilize in subnet scope.
 	 * 
@@ -881,7 +1029,7 @@ public class Jiu {
 							}
 						}
 					}
-					sk.printResult(1, true, v.getDisplayName() + ", " + v.getSizeInMBs() / 1024 + "GB, "
+					sk.printResult(1, true, v.getDisplayName() + ", " + v.getSizeInMBs() / 1024 + " GB, "
 							+ v.getLifecycleState().toString() + ", " + status);
 				}
 			}
@@ -1336,10 +1484,20 @@ public class Jiu {
 				Map<Vnic, Instance> instances = un.getInstanceBySubnetReverseState(vn, c, s,
 						Instance.LifecycleState.Terminated);
 				for (Vnic nic : instances.keySet()) {
-					String dn = instances.get(nic).getDisplayName();
+					String instanceName = instances.get(nic).getDisplayName();
+					String vnicName = nic.getDisplayName();
+					List<PrivateIp> pips = vn.listPrivateIps(ListPrivateIpsRequest.builder().vnicId(nic.getId()).build()).getItems();
+					StringBuffer sb = new StringBuffer();
+					for(PrivateIp pip:pips){
+						sb.append(pip.getIpAddress()+", ");
+					}
+					String sbpips = new String(sb);
 					sk.printResult(2, true,
-							(dn.toLowerCase().contains("bastion") ? Helper.FIST : Helper.STAR) + "  Machine: " + dn
-									+ ", " + nic.getPrivateIp() + ", " + nic.getPublicIp() + ", "
+							(
+									instanceName.toLowerCase().contains("bastion") ? Helper.FIST : Helper.STAR) 
+									+ " vNIC: "+vnicName
+									+ ", " + sbpips + nic.getPublicIp() + ", "
+									+ "Machine: " + instanceName+", "
 									+ instances.get(nic).getShape() + ", "
 									+ uc.getImageNameById(c, instances.get(nic).getImageId()) + ", "
 									+ instances.get(nic).getLifecycleState().getValue());
@@ -2299,10 +2457,10 @@ public class Jiu {
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void demoCreateLinuxSingleBastionInfra(String namePrefix, String oracleLinuxRelease, String releaseDate,
+	public void demoCreateLinuxSingleBastionInfra(String namePrefix,
 			String userdataFilePath, String profile) throws Exception {
 		h.help(namePrefix,
-				"<resource-name-prefix> <ol-release: e.g: 7.3> <release-date: e.g: 2017.04.18-0> <user-data-file-path> <profile-name>");
+				"<resource-name-prefix> <user-data-file-path> <profile-name>");
 		String prefix = namePrefix != null ? namePrefix : "bgltest";
 		sk.printTitle(0, "Create Infrastructure - " + prefix);
 		Identity id = Client.getIamClient(profile);
@@ -2339,6 +2497,8 @@ public class Jiu {
 		}
 		Compute c = Client.getComputeClient(profile);
 		UtilCompute uc = new UtilCompute();
+		String imageId = uc.getImageIdByName(c, Config.getCurrentOracleLinuxImage(profile), compartmentId);
+		/*
 		Image vmImage = null;
 		for (Image img : uc.getAllImage(c, compartmentId)) {
 			if (img.getOperatingSystem().equals("Oracle Linux")
@@ -2347,37 +2507,13 @@ public class Jiu {
 				vmImage = img;
 				break;
 			}
-		}
-		uc.createInstance(c, compartmentId, pubSubnets[0].getId(), prefix + "bastion", vmImage.getId(),
+		}*/
+		uc.createInstance(c, compartmentId, pubSubnets[0].getId(), prefix + "bastion", imageId,
 				"VM.Standard1.1", Config.publicKeyToString(profile), ads.get(0).getName(),
 				userdataFilePath.equalsIgnoreCase("null") ? null : h.base64EncodeFromFile(userdataFilePath),
 				Instance.LifecycleState.Running);
 		this.showVcn(prefix + "vcn", profile);
 		sk.printTitle(0, "End");
-	}
-	
-	/**
-	 * A version of demoCreateSimpleWebInfra.
-	 * 
-	 * @param namePrefix
-	 * @param profile
-	 * @throws Exception
-	 */
-	public void demoCreateLinuxSimpleWebInfraOl73_201707170(String namePrefix, String profile) throws Exception {
-		h.help(namePrefix, "<resource-name-prefix> <profile-name>");
-		this.demoCreateLinuxSimpleWebInfra(namePrefix, "7.3", "2017.07.17-0", profile);
-	}
-	
-	/**
-	 * A version of demoCreateSimpleWebInfra.
-	 * 
-	 * @param namePrefix
-	 * @param profile
-	 * @throws Exception
-	 */
-	public void demoCreateLinuxSimpleWebInfraOl74_201708250(String namePrefix, String profile) throws Exception {
-		h.help(namePrefix, "<resource-name-prefix> <profile-name>");
-		this.demoCreateLinuxSimpleWebInfra(namePrefix, "7.4", "2017.08.25-0", profile);
 	}
 
 	/**
@@ -2387,10 +2523,9 @@ public class Jiu {
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void demoCreateLinuxSimpleWebInfra(String namePrefix, String oracleLinuxRelease, String releaseDate,
-			String profile) throws Exception {
+	public void demoCreateLinuxSimpleWebInfra(String namePrefix, String profile) throws Exception {
 		h.help(namePrefix,
-				"<resource-name-prefix> <ol-release: e.g: 7.3> <release-date: e.g: 2017.04.18-0> <profile-name>");
+				"<resource-name-prefix> <profile-name>");
 		String prefix = namePrefix != null ? namePrefix : "bgltest";
 		sk.printTitle(0, "Create Infrastructure - " + prefix);
 		Identity id = Client.getIamClient(profile);
@@ -2471,27 +2606,23 @@ public class Jiu {
 					vcn.getDefaultDhcpOptionsId(), publicRouteTable.getId(), nosqlSecLists, "Jiu - " + nosqlsnpri + i,
 					false); // TODO change to true when NAT is ready.
 		}
-		// 1 Bastion.
+		// 2 Bastion.
 		Compute c = Client.getComputeClient(profile);
 		UtilCompute uc = new UtilCompute();
-		Image vmImage = null;
-		for (Image img : uc.getAllImage(c, compartmentId)) {
-			if (img.getOperatingSystem().equals("Oracle Linux")
-					&& img.getOperatingSystemVersion().equals(oracleLinuxRelease)
-					&& img.getDisplayName().contains(releaseDate)) {
-				vmImage = img;
-				break;
-			}
-		}
+		String imageId = uc.getImageIdByName(c, Config.getCurrentOracleLinuxImage(profile), compartmentId);
 		GetInstanceResponse bastionGis = uc.createInstance(c, compartmentId, pubSubnets[0].getId(), prefix + "bastion",
-				vmImage.getId(), "VM.Standard1.1", Config.publicKeyToString(profile), ads.get(0).getName(),
+				imageId, "VM.Standard1.1", Config.publicKeyToString(profile), ads.get(0).getName(),
+				h.base64EncodeFromFile(Config.getConfigFileReader(profile).get("bastion_user_data")),
+				Instance.LifecycleState.Provisioning);
+		GetInstanceResponse bastionGis2 = uc.createInstance(c, compartmentId, pubSubnets[0].getId(), prefix + "bastion2",
+				imageId, "VM.Standard1.1", Config.publicKeyToString(profile), ads.get(0).getName(),
 				h.base64EncodeFromFile(Config.getConfigFileReader(profile).get("bastion_user_data")),
 				Instance.LifecycleState.Provisioning);
 		// 2 Web Servers.
 		GetInstanceResponse[] webGis = new GetInstanceResponse[2];
 		for (int i = 0; i < 2; i++) {
 			webGis[i] = uc.createInstance(c, compartmentId, priSubnets[i + 1].getId(), prefix + "web" + i,
-					vmImage.getId(), "VM.Standard1.1", Config.publicKeyToString(profile), ads.get(i + 1).getName(),
+					imageId, "VM.Standard1.1", Config.publicKeyToString(profile), ads.get(i + 1).getName(),
 					h.base64EncodeFromFile(Config.getConfigFileReader(profile).get("webserver" + (i) + "_user_data")),
 					Instance.LifecycleState.Provisioning);
 			// Config.publicKeyToString(profile), ads.get(i).getName(), null,
@@ -2557,10 +2688,16 @@ public class Jiu {
 			}
 		}
 		String bastionId = bastionGis.getInstance().getId();
-		h.silentWaitForInstanceStatus(c, new String[] { bastionId }, Instance.LifecycleState.Running, false);
+		String bastion2Id = bastionGis2.getInstance().getId();
+		h.silentWaitForInstanceStatus(c, new String[] { bastionId, bastion2Id }, Instance.LifecycleState.Running, false);
 		List<Vnic> vnics = uc.getVnicByInstanceId(c, vn, bastionId, compartmentId);
 		for (Vnic v : vnics) {
 			sk.printResult(1, true, "Bastion@AD: " + v.getAvailabilityDomain() + ", HostName: " + v.getHostnameLabel()
+					+ ", " + v.getPrivateIp() + ", " + v.getPublicIp());
+		}
+		List<Vnic> vnics2 = uc.getVnicByInstanceId(c, vn, bastion2Id, compartmentId);
+		for (Vnic v : vnics2) {
+			sk.printResult(1, true, "Bastion2@AD: " + v.getAvailabilityDomain() + ", HostName: " + v.getHostnameLabel()
 					+ ", " + v.getPrivateIp() + ", " + v.getPublicIp());
 		}
 		// this.showVcn(prefix+"vcn", profile);

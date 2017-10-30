@@ -9,6 +9,7 @@ import com.oracle.bmc.core.Compute;
 import com.oracle.bmc.core.VirtualNetwork;
 import com.oracle.bmc.core.model.CreateDhcpDetails;
 import com.oracle.bmc.core.model.CreateInternetGatewayDetails;
+import com.oracle.bmc.core.model.CreatePrivateIpDetails;
 import com.oracle.bmc.core.model.CreateRouteTableDetails;
 import com.oracle.bmc.core.model.CreateSecurityListDetails;
 import com.oracle.bmc.core.model.CreateSubnetDetails;
@@ -20,6 +21,7 @@ import com.oracle.bmc.core.model.IngressSecurityRule;
 import com.oracle.bmc.core.model.Instance;
 import com.oracle.bmc.core.model.InternetGateway;
 import com.oracle.bmc.core.model.PortRange;
+import com.oracle.bmc.core.model.PrivateIp;
 import com.oracle.bmc.core.model.RouteRule;
 import com.oracle.bmc.core.model.RouteTable;
 import com.oracle.bmc.core.model.SecurityList;
@@ -32,20 +34,24 @@ import com.oracle.bmc.core.model.Vnic;
 import com.oracle.bmc.core.model.VnicAttachment;
 import com.oracle.bmc.core.requests.CreateDhcpOptionsRequest;
 import com.oracle.bmc.core.requests.CreateInternetGatewayRequest;
+import com.oracle.bmc.core.requests.CreatePrivateIpRequest;
 import com.oracle.bmc.core.requests.CreateRouteTableRequest;
 import com.oracle.bmc.core.requests.CreateSecurityListRequest;
 import com.oracle.bmc.core.requests.CreateSubnetRequest;
 import com.oracle.bmc.core.requests.CreateVcnRequest;
 import com.oracle.bmc.core.requests.DeleteDhcpOptionsRequest;
+import com.oracle.bmc.core.requests.DeletePrivateIpRequest;
 import com.oracle.bmc.core.requests.DeleteRouteTableRequest;
 import com.oracle.bmc.core.requests.DeleteSecurityListRequest;
 import com.oracle.bmc.core.requests.DeleteSubnetRequest;
 import com.oracle.bmc.core.requests.DeleteVcnRequest;
 import com.oracle.bmc.core.requests.GetInstanceRequest;
+import com.oracle.bmc.core.requests.GetPrivateIpRequest;
 import com.oracle.bmc.core.requests.GetSecurityListRequest;
 import com.oracle.bmc.core.requests.GetSubnetRequest;
 import com.oracle.bmc.core.requests.ListDhcpOptionsRequest;
 import com.oracle.bmc.core.requests.ListInstancesRequest;
+import com.oracle.bmc.core.requests.ListPrivateIpsRequest;
 import com.oracle.bmc.core.requests.ListRouteTablesRequest;
 import com.oracle.bmc.core.requests.ListSecurityListsRequest;
 import com.oracle.bmc.core.requests.ListSubnetsRequest;
@@ -82,6 +88,68 @@ public class UtilNetwork extends UtilMain {
 
 	public UtilNetwork() {
 		super();
+	}
+	
+	/**
+	 * Create private IP for selected vNIC.
+	 * @param vn
+	 * @param displayName
+	 * @param vnicId
+	 * @param ipAddress
+	 * @param hostnameLabel
+	 * @return
+	 */
+	public PrivateIp createPrivateIp(VirtualNetwork vn, String displayName, String vnicId, String ipAddress, String hostnameLabel){
+		return vn.createPrivateIp(CreatePrivateIpRequest.builder().createPrivateIpDetails(CreatePrivateIpDetails.builder()
+				.vnicId(vnicId).ipAddress(ipAddress).hostnameLabel(hostnameLabel).displayName(displayName).build())
+				.build()).getPrivateIp();
+	}
+	
+	/**
+	 * Return VCN by it's name.
+	 * @param vn
+	 * @param vcnName
+	 * @param compartmentId
+	 * @return
+	 */
+	public Vcn getVcnByName(VirtualNetwork vn, String vcnName, String compartmentId){
+		List<Vcn> vcns = vn.listVcns(ListVcnsRequest.builder().compartmentId(compartmentId).build()).getItems();
+		Vcn vcn = null;
+		for(Vcn v:vcns){
+			if(v.getDisplayName().equals(vcnName)){
+				vcn = v;
+			}
+		}
+		return vcn;
+	}
+	
+	/**
+	 * Delete the specific private ip address.
+	 * @param c
+	 * @param vn
+	 * @param vcnName
+	 * @param subnetName
+	 * @param vnicName
+	 * @param instanceName
+	 * @param ipAddress
+	 * @param compartmentId
+	 */
+	public void deletePrivateIp(Compute c, VirtualNetwork vn, String vcnName, String subnetName, String vnicName, String instanceName, String ipAddress, String compartmentId){
+		UtilCompute uc = new UtilCompute();
+		Instance instance = uc.getInstanceByName(c, instanceName, compartmentId);
+		Vnic vnic = uc.getVnicByInstanceIdAndVnicName(c, vn, instance.getId(), vnicName, compartmentId);
+		//Vcn vcn = this.getVcnByName(vn, vcnName, compartmentId);
+		//Subnet subnet = this.getSubnetByName(vn, subnetName, vcn.getId(), compartmentId);
+		String privateIpId = null;
+		//List<PrivateIp> pips = vn.listPrivateIps(ListPrivateIpsRequest.builder().vnicId(vnic.getId()).subnetId(subnet.getId()).ipAddress(ipAddress).build()).getItems();
+		List<PrivateIp> pips = vn.listPrivateIps(ListPrivateIpsRequest.builder().vnicId(vnic.getId()).build()).getItems();
+		for(PrivateIp pip:pips){
+			if(pip.getIpAddress().equals(ipAddress)){
+				privateIpId = pip.getId(); // Only get the first one.
+				break;
+			}
+		}
+		vn.deletePrivateIp(DeletePrivateIpRequest.builder().privateIpId(privateIpId).build());
 	}
 	
 	/**

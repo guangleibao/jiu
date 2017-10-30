@@ -117,11 +117,36 @@ public class UtilCompute extends UtilMain{
 		List<VnicAttachment> atchs = c.listVnicAttachments(ListVnicAttachmentsRequest.builder().compartmentId(compartmentId).instanceId(instanceId).build()).getItems();
 		List<Vnic> vnics = new ArrayList<Vnic>();
 		for(VnicAttachment va: atchs){
-			String vid = va.getVnicId();
-			Vnic v = vn.getVnic(GetVnicRequest.builder().vnicId(vid).build()).getVnic();
-			vnics.add(v);
+			VnicAttachment.LifecycleState state = va.getLifecycleState();
+			if(state.equals(VnicAttachment.LifecycleState.Attached)
+					|| state.equals(VnicAttachment.LifecycleState.Attaching)){
+				String vid = va.getVnicId();
+				Vnic v = vn.getVnic(GetVnicRequest.builder().vnicId(vid).build()).getVnic();
+				vnics.add(v);
+			}
 		}
 		return vnics;
+	}
+	
+	/**
+	 * Get VNIC on VM instance, based on VNIC name.
+	 * @param c
+	 * @param vn
+	 * @param instanceId
+	 * @param vnicName
+	 * @param compartmentId
+	 * @return
+	 */
+	public Vnic getVnicByInstanceIdAndVnicName(Compute c, VirtualNetwork vn, String instanceId, String vnicName, String compartmentId){
+		Vnic nic = null;
+		List<Vnic> vnics = this.getVnicByInstanceId(c, vn, instanceId, compartmentId);
+		for(Vnic v:vnics){
+			if(v.getDisplayName().equals(vnicName)){
+				nic = v;
+				break;
+			}
+		}
+		return nic;
 	}
 	
 	/**
@@ -470,6 +495,8 @@ public class UtilCompute extends UtilMain{
 		return c.getInstance(GetInstanceRequest.builder().instanceId(instanceId).build()).getInstance();
 	}
 	
+	
+	
 	public void detachSecondaryVnic(Compute c, VirtualNetwork vn, String name, String instanceId) throws Exception{
 		Instance i = this.getInstanceById(c, instanceId);
 		List<Vnic> vnics = this.getVnicByInstanceId(c, vn, instanceId, i.getCompartmentId());
@@ -480,6 +507,7 @@ public class UtilCompute extends UtilMain{
 				break;
 			}
 		}
+		System.out.println("RemoveMe: "+vnicId);
 		List<VnicAttachment> vas = c.listVnicAttachments(ListVnicAttachmentsRequest.builder().compartmentId(i.getCompartmentId()).instanceId(instanceId).vnicId(vnicId).build()).getItems();
 		String vnicAttachmentId = null;
 		for(VnicAttachment va:vas){
