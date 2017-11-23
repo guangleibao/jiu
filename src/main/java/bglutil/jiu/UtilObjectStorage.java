@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.util.Date;
 import java.util.Map;
 
+import com.oracle.bmc.model.BmcException;
 import com.oracle.bmc.objectstorage.ObjectStorage;
 import com.oracle.bmc.objectstorage.model.Bucket;
 import com.oracle.bmc.objectstorage.model.BucketSummary;
@@ -22,6 +23,7 @@ import com.oracle.bmc.objectstorage.requests.CreatePreauthenticatedRequestReques
 import com.oracle.bmc.objectstorage.requests.DeleteBucketRequest;
 import com.oracle.bmc.objectstorage.requests.DeleteObjectRequest;
 import com.oracle.bmc.objectstorage.requests.DeletePreauthenticatedRequestRequest;
+import com.oracle.bmc.objectstorage.requests.GetBucketRequest;
 import com.oracle.bmc.objectstorage.requests.GetNamespaceRequest;
 import com.oracle.bmc.objectstorage.requests.GetObjectRequest;
 import com.oracle.bmc.objectstorage.requests.ListBucketsRequest;
@@ -161,10 +163,18 @@ public class UtilObjectStorage extends UtilMain {
 	 */
 	public Bucket createBucket(ObjectStorage os, String bucketName, String compartmentId) {
 		String ns = this.getNamespace(os);
-		Bucket b = os.createBucket(CreateBucketRequest.builder()
+		Bucket b = null;
+		try{
+		b = os.createBucket(CreateBucketRequest.builder()
 				.namespaceName(ns).createBucketDetails(CreateBucketDetails.builder().compartmentId(compartmentId)
 						.name(bucketName).publicAccessType(PublicAccessType.NoPublicAccess).build())
-				.build()).getBucket();
+				.build()).getBucket();}
+		catch(BmcException ex){
+			if(ex.getMessage().contains("BucketAlreadyExists")){
+				sk.printResult(0, true, "Bucket "+bucketName+" already exists.");
+				b = os.getBucket(GetBucketRequest.builder().bucketName(bucketName).namespaceName(ns).build()).getBucket();
+			}
+		}
 		return b;
 	}
 

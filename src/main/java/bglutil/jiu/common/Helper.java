@@ -160,8 +160,8 @@ public class Helper {
 			throw new RuntimeException("File Content is NULL!!");
 		}
 		String base64 = this.base64Encode(script);
-		sk.printTitle(0,"Encoded:");
-		System.out.println(base64);
+		//sk.printTitle(0,"Encoded:");
+		//System.out.println(base64);
 		return base64;
 	}
 	

@@ -2315,10 +2315,10 @@ public class Jiu {
 	 * @param profile
 	 * @throws Exception
 	 */
-	public void demoCreateLinuxInstanceGroupInfra(String namePrefix, String count, String oracleLinuxRelease, String releaseDate,
+	public void demoCreateLinuxInstanceGroupInfra(String namePrefix, String count,
 			String userdataFilePath, String profile) throws Exception {
 		h.help(namePrefix,
-				"<demo-name-prefix> <instance-count> <ol-release: e.g: 7.3> <release-date: e.g: 2017.04.18-0> <userdata-file-path> <profile-name>");
+				"<demo-name-prefix> <instance-count> <userdata-file-path> <profile-name>");
 		String prefix = namePrefix != null ? namePrefix : "bgltest";
 		sk.printTitle(0, "Create instances group - " + prefix);
 		Identity id = Client.getIamClient(profile);
@@ -2356,19 +2356,11 @@ public class Jiu {
 		}
 		Compute c = Client.getComputeClient(profile);
 		UtilCompute uc = new UtilCompute();
-		Image vmImage = null;
-		for (Image img : uc.getAllImage(c, compartmentId)) {
-			if (img.getOperatingSystem().equals("Oracle Linux")
-					&& img.getOperatingSystemVersion().equals(oracleLinuxRelease)
-					&& img.getDisplayName().contains(releaseDate)) { // "2017.04.18-0"
-				vmImage = img;
-				break;
-			}
-		}
+		String imageId = uc.getImageIdByName(c, Config.getCurrentOracleLinuxImage(profile), compartmentId);
 		String[] instanceIds = new String[cnt];
 		for (int i = 0; i < cnt; i++) {
 			instanceIds[i] = uc.createInstance(c, compartmentId, pubSubnets[0].getId(), prefix + "node" + i,
-					vmImage.getId(), "VM.Standard1.1", Config.publicKeyToString(profile), ads.get(0).getName(),
+					imageId, "VM.Standard1.1", Config.publicKeyToString(profile), ads.get(0).getName(),
 					userdataFilePath.equalsIgnoreCase("null") ? null : h.base64EncodeFromFile(userdataFilePath),
 					Instance.LifecycleState.Provisioning).getInstance().getId();
 		}
@@ -2376,30 +2368,9 @@ public class Jiu {
 		sk.printResult(0, true, "Waiting running status");
 		h.silentWaitForInstanceStatus(c, instanceIds, Instance.LifecycleState.Running, false);
 		sk.printTitle(0, "End");
+		this.showVcn(prefix + "vcn", profile);
 	}
 
-	/**
-	 * TODO High level complete process of Bring Your Own Image: 1. Create a
-	 * VCN, subnets, a bastion host, and an iPXE boot server. 2. Set up the
-	 * document root of the PXE boot instance to boot and install the customer
-	 * OS over iPXE. This process varies by OS. 3. Launch a sacrificial instance
-	 * with the ipxeScript attribute of the LaunchInstance API call. 4. Wait for
-	 * the customer OS to install on the instance. (This process usually
-	 * requires less than 15 minutes.) 5. (Optional) Log on to the sacrificial
-	 * instance to customize it. 6. Create a custom image of the sacrificial
-	 * instance. 7. Use the custom image to launch new instances as needed.
-	 * 
-	 * Solved by demoPrepareForPxe(): 1. Create a VCN, subnets, a bastion host,
-	 * and an iPXE boot server. 2. Set up the document root of the PXE boot
-	 * instance to boot and install the customer OS over iPXE. This process
-	 * varies by OS.
-	 * 
-	 * @throws Exception
-	 */
-	public void demoPrepareForPxe(String namePrefix, String bastionUserdataFilePath, String profile) throws Exception {
-		this.demoCreateLinuxInstanceGroupInfra(namePrefix, "7.3", "2017.07.17-0", "1", bastionUserdataFilePath, profile);
-
-	}
 
 	/**
 	 * Create new VCN with only one public subnet in it.

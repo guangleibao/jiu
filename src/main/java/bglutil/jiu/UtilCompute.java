@@ -283,37 +283,76 @@ public class UtilCompute extends UtilMain{
 			String sh = s.getShape();
 			String ss = null;
 			if(sh.equals("BM.Standard1.36")){
-				ss = "bm003 "+sh+" [36 OCPU 72 vCPU 256GB RAM]";
+				ss = "bm1003 "+sh+" [36 OCPU, 72 vCPU, 256 GB, 10 Gbps, 16 VNICs]";
 			}
 			else if(sh.equals("BM.HighIO1.36")){
-				ss = "bm002 "+sh+" [36 OCPU 72 vCPU 512GB RAM 12.8TB NVMe SSD]";
+				ss = "bm1002 "+sh+" [36 OCPU, 72 vCPU, 512 GB, 12.8 TB NVMe, 10 Gbps, 16 VNICs]";
 			}
 			else if(sh.equals("BM.DenseIO1.36")){
-				ss = "bm001 "+sh+" [36 OCPU 72 vCPU 512GB RAM 28.8TB NVMe SSD]";
+				ss = "bm1001 "+sh+" [36 OCPU, 72 vCPU, 512 GB, 28.8 TB NVMe, 10 Gbps, 16 VNICs]";
 			}
 			else if(sh.equals("VM.Standard1.1")){
-				ss = "vm008 " +sh+" [1 OCPU 2 vCPU 7GB RAM]";
+				ss = "vm1008 " +sh+" [1 OCPU, 2 vCPU, 7 GB, Up to 600 Mbps, 2 VNICs]";
 			}
 			else if(sh.equals("VM.Standard1.2")){
-				ss = "vm007 "+sh+" [2 OCPU 4 vCPU 14GB RAM]";
+				ss = "vm1007 "+sh+" [2 OCPU, 4 vCPU, 14 GB, Up to 1.2 Gbps, 2 VNICs]";
 			}
 			else if(sh.equals("VM.Standard1.4")){
-				ss = "vm006 "+sh+" [4 OCPU 8 vCPU 28GB RAM]";
+				ss = "vm1006 "+sh+" [4 OCPU, 8 vCPU, 28 GB, 1.2 Gbps, 2 VNICs]";
 			}
 			else if(sh.equals("VM.Standard1.8")){
-				ss = "vm005 "+sh+" [8 OCPU 16 vCPU 56GB RAM]";
+				ss = "vm1005 "+sh+" [8 OCPU, 16 vCPU, 56 GB, 2.4 Gbps, 4 VNICs]";
 			}
 			else if(sh.equals("VM.Standard1.16")){
-				ss = "vm004 "+sh+" [16 OCPU 32 vCPU 112GB RAM]";
+				ss = "vm1004 "+sh+" [16 OCPU, 32 vCPU, 112 GB, 4.8 Gbps, 8 VNICs]";
 			}
 			else if(sh.equals("VM.DenseIO1.4")){
-				ss = "vm003 "+sh+" [4 OCPU 8 vCPU 60GB RAM 3.2TB NVMe SSD]";
+				ss = "vm1003 "+sh+" [4 OCPU, 8 vCPU, 60 GB, 3.2 TB NVMe, 1.2 Gbps, 2 VNICs]";
 			}
 			else if(sh.equals("VM.DenseIO1.8")){
-				ss = "vm002 "+sh+" [8 OCPU 16 vCPU 120GB RAM 6.4TB NVMe SSD]";
+				ss = "vm1002 "+sh+" [8 OCPU, 16 vCPU, 120 GB, 6.4 TB NVMe, 2.4 Gbps, 4 VNICs]";
 			}
 			else if(sh.equals("VM.DenseIO1.16")){
-				ss = "vm001 "+sh+" [16 OCPU 32 vCPU 240GB RAM 12.8TB NVMe SSD]";
+				ss = "vm1001 "+sh+" [16 OCPU, 32 vCPU, 240 GB, 12.8 TB NVMe, 4.8 Gbps, 8 VNICs]";
+			}
+			else if(sh.equals("VM.DenseIO2.24")){
+				ss = "vm2001 "+sh+" [24 OCPU, 48 vCPU, 320 GB, 25.6 TB NVMe, 24.6 Gbps, 12 VNICs]";
+			}
+			else if(sh.equals("VM.DenseIO2.16")){
+				ss = "vm2002 "+sh+" [16 OCPU, 32 vCPU, 240 GB, 12.8 TB NVMe, 16.4 Gbps, 8 VNICs]";
+			}
+			else if(sh.equals("VM.DenseIO2.8")){
+				ss = "vm2003 "+sh+" [8 OCPU, 16 vCPU, 120 GB, 6.4 TB NVMe, 8.2 Gbps, 4 VNICs]";
+			}
+			else if(sh.equals("VM.Standard2.24")){
+				ss = "vm2004 "+sh+" [24 OCPU, 48 vCPU, 320 GB, 24.6 Gbps, 12 VNICs]";
+			}
+			else if(sh.equals("VM.Standard2.16")){
+				ss = "vm2005 "+sh+" [16 OCPU, 32 vCPU, 240 GB, 16.4 Gbps, 8 VNICs]";
+			}
+			else if(sh.equals("VM.Standard2.8")){
+				ss = "vm2006 "+sh+" [8 OCPU, 16 vCPU, 120 GB, 8.2 Gbps, 4 VNICs]";
+			}
+			else if(sh.equals("VM.Standard2.4")){
+				ss = "vm2007 "+sh+" [4 OCPU, 8 vCPU, 60 GB, 4.1 Gbps, 2 VNICs]";
+			}
+			else if(sh.equals("VM.Standard2.2")){
+				ss = "vm2008 "+sh+" [2 OCPU, 4 vCPU, 30 GB, 2 Gbps, 2 VNICs]";
+			}
+			else if(sh.equals("VM.Standard2.1")){
+				ss = "vm2009 "+sh+" [1 OCPU, 2 vCPU, 15 GB, 1 Gbps, 2 VNICs]";
+			}
+			else if(sh.equals("VM.Standard2.1")){
+				ss = "vm2009 "+sh+" [1 OCPU, 2 vCPU, 15 GB, 1 Gbps, 2 VNICs]";
+			}
+			else if(sh.equals("BM.DenseIO2.52")){
+				ss = "bm2001 "+sh+" [52 OCPU, 104 vCPU, 768 GB, 51.2 TB NVMe, 2 x 25 Gbps, 24 VNICs]";
+			}
+			else if(sh.equals("BM.Standard2.52")){
+				ss = "bm2002 "+sh+" [52 OCPU, 104 vCPU, 768 GB, 2 x 25 Gbps, 24 VNICs]";
+			}
+			else if(sh.equals("BM.GPU2.2")){
+				ss = "bm2003 "+sh+" [28 OCPU, 56 vCPU, 2 x P100 GPU, 192 GB, 2 x 25 Gbps, 24 VNICs]";
 			}
 			else{
 				ss = sh;
